@@ -20,7 +20,7 @@ class PurunNVR(object):
         self.window.set_position(Gtk.WindowPosition.CENTER)
         self.window.set_title("PyCCTV NVR")
         #self.window.fullscreen()
-        self.window.connect('destroy', self.windowQuit)
+        self.window.connect('destroy', self.on_window_quit)
         vbox = Gtk.VBox()
         self.window.add(vbox)
         
@@ -31,7 +31,7 @@ class PurunNVR(object):
         
         self.player = Gst.Pipeline.new('CCTV_NVR')
         
-    def windowQuit(self, window):
+    def on_window_quit(self, window):
         self.player.set_state(Gst.State.NULL)
         Gtk.main_quit()
         
@@ -58,5 +58,5 @@ class PurunNVR(object):
 if __name__ == "__main__":
     GObject.threads_init()
     Gst.init(None)
-    app = PurunNVR()
+    PurunNVR()
     Gtk.main()
