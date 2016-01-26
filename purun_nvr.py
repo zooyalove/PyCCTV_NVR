@@ -19,13 +19,11 @@ from videoPlayer import VideoPlayer
 """
 class NvrWindow(Gtk.ApplicationWindow):
     def __init__(self, app):
-        Gtk.Window.__init__(self, title="PyCCTV NVR", application=app)
+        Gtk.Window.__init__(self, title="PyCCTV NVR", application=app, type=Gtk.WindowType.TOPLEVEL)
 
         self.setupUI()
 
     def setupUI(self):
-        self.type = Gtk.WindowType.TOPLEVEL
-        
         self.set_position(Gtk.WindowPosition.CENTER)
         self.set_size_request(660, 500)
         self.connect('destroy', self.on_window_quit)
@@ -37,7 +35,7 @@ class NvrWindow(Gtk.ApplicationWindow):
         self.videowidget.set_size_request(640, 480)
         vbox.add(self.videowidget)
     
-        VideoPlayer()
+        VideoPlayer(self)
 
         self.player = Gst.Pipeline.new('CCTV_NVR')
         
