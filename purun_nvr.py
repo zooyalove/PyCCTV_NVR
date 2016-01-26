@@ -20,10 +20,16 @@ from videoPlayer import VideoPlayer
 class NvrWindow(Gtk.ApplicationWindow):
     def __init__(self, app):
         Gtk.Window.__init__(self, title="PyCCTV NVR", application=app)
+
+        self.setupUI()
+
+    def setupUI(self):
         self.type = Gtk.WindowType.TOPLEVEL
         
         self.set_position(Gtk.WindowPosition.CENTER)
         self.set_size_request(660, 500)
+        self.connect('destroy', self.on_window_quit)
+        
         vbox = Gtk.VBox()
         self.add(vbox)
         
@@ -33,15 +39,6 @@ class NvrWindow(Gtk.ApplicationWindow):
     
         VideoPlayer()
 
-                
-class PurunNVR(Gtk.Application):
-    def __init__(self):
-        Gtk.Application.__init__(self)
-
-    def do_activate(self):        
-        self.window = NvrWindow(self)
-        self.window.show_all()
-        
         self.player = Gst.Pipeline.new('CCTV_NVR')
         
     def on_window_quit(self, window):
@@ -66,6 +63,15 @@ class PurunNVR(Gtk.Application):
             videosink = msg.src
             videosink.set_property('force-aspect-ratio', True)
             #videosink.set_window_handle(self.videowidget.get_property('window').get_xid())
+                
+class PurunNVR(Gtk.Application):
+    def __init__(self):
+        Gtk.Application.__init__(self)
+
+    def do_activate(self):        
+        self.window = NvrWindow(self)
+        self.window.show_all()
+        
         
 GObject.threads_init()
 Gst.init(None)
