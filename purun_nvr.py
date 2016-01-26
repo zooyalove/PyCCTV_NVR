@@ -1,11 +1,14 @@
 #!/usr/bin/python3
 
+import sys
+
 import gi
 gi.require_version('Gst', '1.0')
 
 from gi.repository import Gst, GObject, Gtk, Gdk
 from gi.repository import GdkX11, GstVideo
 from pushbullet import Pushbullet
+from videoPlayer import VideoPlayer
 
 """
     - PurunNVR 클래스의 기능 -
@@ -14,26 +17,35 @@ from pushbullet import Pushbullet
         > 모션 감지시 사진 저장하고 PushBullet으로 사진 전송하기 
         > 모션감지는 설정에 의해서 기능가능 여부를 판단한다 
 """
-class PurunNVR(object):
-    def __init__(self):
-        self.window = Gtk.Window(Gtk.WindowType.TOPLEVEL)
-        self.window.set_position(Gtk.WindowPosition.CENTER)
-        self.window.set_title("PyCCTV NVR")
-        #self.window.fullscreen()
-        self.window.connect('destroy', self.on_window_quit)
+class NvrWindow(Gtk.ApplicationWindow):
+    def __init__(self, app):
+        Gtk.Window.__init__(self, title="PyCCTV NVR", application=app)
+        self.type = Gtk.WindowType.TOPLEVEL
+        
+        self.set_position(Gtk.WindowPosition.CENTER)
+        self.set_size_request(660, 500)
         vbox = Gtk.VBox()
-        self.window.add(vbox)
+        self.add(vbox)
         
         self.videowidget = Gtk.DrawingArea()
+        self.videowidget.set_size_request(640, 480)
         vbox.add(self.videowidget)
-        
+    
+        VideoPlayer()
+
+                
+class PurunNVR(Gtk.Application):
+    def __init__(self):
+        Gtk.Application.__init__(self)
+
+    def do_activate(self):        
+        self.window = NvrWindow(self)
         self.window.show_all()
         
         self.player = Gst.Pipeline.new('CCTV_NVR')
         
     def on_window_quit(self, window):
         self.player.set_state(Gst.State.NULL)
-        Gtk.main_quit()
         
     def on_message(self, bus, msg):
         t = msg.type
@@ -53,10 +65,10 @@ class PurunNVR(object):
         if msg.get_structure().get_name() == "prepare-window-handle":
             videosink = msg.src
             videosink.set_property('force-aspect-ratio', True)
-            videosink.set_window_handle(self.videowidget.get_property('window').get_xid())
+            #videosink.set_window_handle(self.videowidget.get_property('window').get_xid())
         
-if __name__ == "__main__":
-    GObject.threads_init()
-    Gst.init(None)
-    PurunNVR()
-    Gtk.main()
+GObject.threads_init()
+Gst.init(None)
+
+app = PurunNVR()
+sys.exit(app.run(sys.argv))
