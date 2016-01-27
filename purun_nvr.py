@@ -19,14 +19,14 @@ from videoPlayer import VideoPlayer
 """
 class NvrWindow(Gtk.ApplicationWindow):
     def __init__(self, app):
-        Gtk.Window.__init__(self, title="PyCCTV NVR", application=app, type=Gtk.WindowType.TOPLEVEL)
+        Gtk.Window.__init__(self, title="PyCCTV NVR", application=app)
 
         self.setupUI()
 
     def setupUI(self):
         self.set_position(Gtk.WindowPosition.CENTER)
         self.set_size_request(660, 500)
-        self.connect('destroy', self.on_window_quit)
+        self.connect('delete-event', self.on_window_quit)
         
         vbox = Gtk.VBox()
         self.add(vbox)
@@ -65,12 +65,15 @@ class NvrWindow(Gtk.ApplicationWindow):
 class PurunNVR(Gtk.Application):
     def __init__(self):
         Gtk.Application.__init__(self)
+        
+    def do_activate(self):
+        window = NvrWindow(self)
+        window.show_all()
+        
+    def do_startup(self):
+        Gtk.Application.do_startup(self)
+        
 
-    def do_activate(self):        
-        self.window = NvrWindow(self)
-        self.window.show_all()
-        
-        
 GObject.threads_init()
 Gst.init(None)
 
