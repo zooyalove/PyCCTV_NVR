@@ -26,13 +26,14 @@ class NvrWindow(Gtk.ApplicationWindow):
     def setupUI(self):
         self.set_position(Gtk.WindowPosition.CENTER)
         self.set_size_request(660, 500)
-        self.connect('delete-event', self.on_window_quit)
+        self.connect('destroy', self.on_window_quit)
         
         vbox = Gtk.VBox()
         self.add(vbox)
         
         self.videowidget = Gtk.DrawingArea()
         self.videowidget.set_size_request(640, 480)
+        self.videowidget.modify_bg(Gtk.StateType.NORMAL, Gdk.Color(0, 0, 0))
         vbox.add(self.videowidget)
     
         VideoPlayer(self)
