@@ -7,8 +7,9 @@ gi.require_version('Gst', '1.0')
 
 from gi.repository import Gst, GObject, Gtk, Gdk
 from gi.repository import GdkX11, GstVideo
-from pushbullet import Pushbullet
-from videoPlayer import VideoPlayer
+
+#from videoPlayer import VideoPlayer
+from CameraWidget import cameraWidget
 
 """
     - PurunNVR 클래스의 기능 -
@@ -31,12 +32,14 @@ class NvrWindow(Gtk.ApplicationWindow):
         vbox = Gtk.VBox()
         self.add(vbox)
         
-        self.videowidget = Gtk.DrawingArea()
+        cam1 = cameraWidget("CAM1", source={'ip':'192.168.0.81', 'port':5000})
+        vbox.add(cam1)
+        """self.videowidget = Gtk.DrawingArea()
         self.videowidget.set_size_request(640, 480)
         self.videowidget.modify_bg(Gtk.StateType.NORMAL, Gdk.Color(0, 0, 0))
-        vbox.add(self.videowidget)
+        vbox.add(self.videowidget)"""
     
-        VideoPlayer(self)
+        #VideoPlayer(self)
 
         self.player = Gst.Pipeline.new('CCTV_NVR')
         
@@ -44,24 +47,8 @@ class NvrWindow(Gtk.ApplicationWindow):
         self.player.set_state(Gst.State.NULL)
         
     def on_message(self, bus, msg):
-        t = msg.type
-        if t == Gst.MessageType.ERROR:
-            err, debug = msg.parse_error()
-            print("Error received from element %s: %s" % (msg.src.get_name(), err))
-            print("Debugging information : %s" % debug)
-            self.player.set_state(Gst.State.NULL)
-        elif t == Gst.MessageType.EOS:
-            print("End-Of-Stream reached.")
-            self.player.set_state(Gst.State.NULL)
-        else:
-            print("Not know message received.")
-            
-        
-    def on_sync_message(self, bus, msg):
-        if msg.get_structure().get_name() == "prepare-window-handle":
-            videosink = msg.src
-            videosink.set_property('force-aspect-ratio', True)
-            #videosink.set_window_handle(self.videowidget.get_property('window').get_xid())
+        pass
+       
                 
 class PurunNVR(Gtk.Application):
     def __init__(self):
