@@ -8,6 +8,8 @@ from pushbullet import Pushbullet
 class cameraWidget(Gtk.VBox):
     NOT_RECORD = "Don't Recoding."
     RECORDING = "Now Recording..."
+    DEVICE_CONNECTING = "Camera connecting..."
+    DEVICE_CONNECT_ERROR = "Error camera connect"
     
     STOP_IMAGE = Gtk.STOCK_MEDIA_STOP
     RECORD_IMAGE = Gtk.STOCK_MEDIA_RECORD
@@ -63,20 +65,22 @@ class cameraWidget(Gtk.VBox):
     
         self.show_all()
         
-    def _on_video_loading(self, widget, event):
-        print(widget)
-        print(event)
-        
-        widget.hide()
-        self._rec_image.set_from_stock(self.RECORD_IMAGE, Gtk.IconSize.LARGE_TOOLBAR)
-        self._rec_text.set_text(self.RECORDING)
-        
     def _createGstBin(self):
         self._bin = Gst.Bin.new(self._camera_name)
         
         self._cam_src = Gst.ElementFactory.make('tcpclientsrc', self._name.lower())
         self._cam_src.set_property('host', self._source["ip"])
         self._cam_src.set_property('port', self._source["port"])
+        self._bin.add(self._cam_src)
+        
+        gdpdepay = Gst.ElementFactory.make('gdpdepay', None)
+        self._bin.add(gdpdepay)
+        
+        rtpdepay = Gst.ElementFactory.make('rtph264depay', None)
+        self._bin.add(rtpdepay)
+        
+        avdec = Gst.ElementFactory.make('avdec_h264', None)
+        self._bin.add(avdec)
         
         self._tee = Gst.ElementFactory.make('tee', self._name.lower() + "_tee")
         
@@ -89,6 +93,14 @@ class cameraWidget(Gtk.VBox):
         bus.connect('message', self._on_message_handler)
         bus.connect('sync-message::element', self._on_sync_message_handler)
     
+    def _on_video_loading(self, widget, event):
+        print(widget)
+        print(event)
+        
+        widget.hide()
+        self._rec_image.set_from_stock(self.RECORD_IMAGE, Gtk.IconSize.LARGE_TOOLBAR)
+        self._rec_text.set_text(self.RECORDING)
+        
     def _on_message_handler(self, bus, msg):
         t = msg.type
         if t == Gst.MessageType.ERROR:
