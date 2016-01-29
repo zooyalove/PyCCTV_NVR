@@ -29,6 +29,7 @@ class cameraWidget(Gtk.VBox):
         self._name = name
         
     def _setupUI(self):
+        self.is_playing = False
         self._overlay = Gtk.Overlay()
         self.add(self._overlay)
         
