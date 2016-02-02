@@ -11,7 +11,8 @@ class VideoWidget(Gtk.DrawingArea):
         self._sink = None
         self._xid = None
         
-        self.modify_bg(Gtk.StateType.NORMAL, self.get_style().BLACK)
+        self.modify_bg(Gtk.StateType.NORMAL, self.get_style().black)
+        self.show()
         
     def do_expose_event(self, event):
         if self._sink is not None:
@@ -21,7 +22,8 @@ class VideoWidget(Gtk.DrawingArea):
             return True
         
     def set_sink(self, sink):
-        self._sink = sink
         self._xid = self.get_property('window').get_xid()
+        self._sink = sink
+        self._sink.set_property('force-aspect-ratio', True)
         self._sink.set_window_handle(self._xid)
         

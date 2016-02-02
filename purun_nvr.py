@@ -8,8 +8,8 @@ gi.require_version('Gst', '1.0')
 from gi.repository import Gst, GObject, Gtk, Gdk
 from gi.repository import GdkX11, GstVideo
 
-#from videoPlayer import VideoPlayer
-from CameraWidget import cameraWidget
+#from videoplayer import VideoPlayer
+from camerawidget import CameraWidget
 
 """
     - PurunNVR 클래스의 기능 -
@@ -32,7 +32,7 @@ class NvrWindow(Gtk.ApplicationWindow):
         vbox = Gtk.VBox()
         self.add(vbox)
         
-        cam1 = cameraWidget("CAM1", source={'ip':'192.168.0.81', 'port':5000})
+        cam1 = CameraWidget("CAM1", source={'ip':'192.168.0.81', 'port':5000})
         vbox.add(cam1)
         """self.videowidget = Gtk.DrawingArea()
         self.videowidget.set_size_request(640, 480)

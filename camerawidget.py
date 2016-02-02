@@ -4,8 +4,9 @@ gi.require_version('Gtk', '3.0')
 
 from gi.repository import Gtk, Gdk, Gst
 from pushbullet import Pushbullet
+from videowidget import VideoWidget
 
-class cameraWidget(Gtk.VBox):
+class CameraWidget(Gtk.VBox):
     NOT_RECORD = "Don't Recoding."
     RECORDING = "Now Recording..."
     DEVICE_CONNECTING = "Camera connecting..."
@@ -14,19 +15,22 @@ class cameraWidget(Gtk.VBox):
     STOP_IMAGE = Gtk.STOCK_MEDIA_STOP
     RECORD_IMAGE = Gtk.STOCK_MEDIA_RECORD
     
-    def __init__(self, name, source={'ip':'127.0.0.1', 'port':5000}, size=(640, 480)):
+    def __init__(self, name, source={'ip':'127.0.0.1', 'port':5000}, size=(648, 365)):
         Gtk.VBox.__init__(self)
         
-        self._create_source(source)
+        self._set_source(source)
         self._set_camera_name(name)
         self.set_size(size)
         self._setupUI()
         
-    def _create_source(self, source):
+    def _set_source(self, source):
         self._source = source
         
     def _set_camera_name(self, name):
         self._name = name
+        
+    def get_camera_name(self):
+        return self._name
         
     def _setupUI(self):
         self.is_playing = False
@@ -34,8 +38,7 @@ class cameraWidget(Gtk.VBox):
         self.add(self._overlay)
         
         # Video screen renderer object initialize
-        self._video_renderer = Gtk.DrawingArea()
-        self._video_renderer.modify_bg(Gtk.StateType.NORMAL, Gdk.Color(0, 0, 0))
+        self._video_renderer = VideoWidget()
         
         self._overlay.add(self._video_renderer)
 
@@ -45,9 +48,6 @@ class cameraWidget(Gtk.VBox):
         
         tim = Gtk.Image()
         tim.set_from_stock(Gtk.STOCK_DIALOG_QUESTION, Gtk.IconSize.DIALOG)
-        tim.set_halign(Gtk.Align.CENTER)
-        tim.set_valign(Gtk.Align.CENTER)
-        #tim.add_events(Gdk.EventMask.BUTTON_PRESS_MASK)
         
         self._logo_box.connect('button-press-event', self._on_video_loading)
         self._logo_box.add(tim)
@@ -66,27 +66,82 @@ class cameraWidget(Gtk.VBox):
     
         self.show_all()
         
-    def _createGstBin(self):
-        self._bin = Gst.Bin.new(self._camera_name)
+    def _createSourceBin(self):
+        c_name = self._name.lower() 
+        source_bin = Gst.Bin.new(c_name + "_src_bin")
         
-        self._cam_src = Gst.ElementFactory.make('tcpclientsrc', self._name.lower())
-        self._cam_src.set_property('host', self._source["ip"])
-        self._cam_src.set_property('port', self._source["port"])
-        self._bin.add(self._cam_src)
+        cam_src = Gst.ElementFactory.make('tcpclientsrc', c_name + "_src")
+        cam_src.set_property('host', self._source["ip"])
+        cam_src.set_property('port', self._source["port"])
+        source_bin.add(cam_src)
         
         gdpdepay = Gst.ElementFactory.make('gdpdepay', None)
-        self._bin.add(gdpdepay)
+        source_bin.add(gdpdepay)
         
         rtpdepay = Gst.ElementFactory.make('rtph264depay', None)
-        self._bin.add(rtpdepay)
+        source_bin.add(rtpdepay)
         
         avdec = Gst.ElementFactory.make('avdec_h264', None)
-        self._bin.add(avdec)
+        source_bin.add(avdec)
         
-        self._tee = Gst.ElementFactory.make('tee', self._name.lower() + "_tee")
+        cam_src.link(gdpdepay)
+        gdpdepay.link(rtpdepay)
+        rtpdepay.link(avdec)
         
-        self._vid_sink = Gst.ElementFactory.make('autovideosink', self._name.lower() + "_videosink")
+        dec_pad = avdec.get_static_pad('src')
+        gh_pad = Gst.GhostPad.new('src', dec_pad)
+        dec_pad.link(gh_pad)
+        source_bin.add_pad(gh_pad)
         
+        return source_bin
+        
+        
+    def _createVideoSinkBin(self):
+        #self._tee = Gst.ElementFactory.make('tee', self._name.lower() + "_tee")
+        c_name = self._name.lower()
+        
+        sink_bin = Gst.Bin.new(c_name + "_vidsink_bin")
+        
+        queue = Gst.ElementFactory.make('queue', None)
+        sink_bin.add(queue)
+        
+        conv1 = Gst.ElementFactory.make('videoconvert', None)
+        sink_bin.add(conv1)
+        
+        crop = Gst.ElementFactory.make('videocrop', c_name + "_crop")
+        sink_bin.add(crop)
+        
+        scale = Gst.ElementFactory.make('videoscale', None)
+        sink_bin.add(scale)
+        
+        caps = Gst.caps_from_string("video/x-raw, width=648, height=365")
+        capsfilter = Gst.ElementFactory.make('capsfilter', None)
+        capsfilter.set_property('caps', caps)
+        sink_bin.add(capsfilter)
+        
+        conv2 = Gst.ElementFactory.make('videoconvert', None)
+        sink_bin.add(conv2)
+        
+        self._vid_sink = Gst.ElementFactory.make('autovideosink', c_name + "_videosink")
+        self._vid_sink.set_property('sync', False)
+        sink_bin.add(self._vid_sink)
+        
+        queue.link(conv1)
+        conv1.link(crop)
+        crop.link(scale)
+        scale.link(capsfilter)
+        capsfilter.link(conv2)
+        conv2.link(self._vid_sink)
+        
+        q_pad = queue.get_static_pad('sink')
+        gh_pad = Gst.GhostPad.new('sink', q_pad)
+        gh_pad.link(q_pad)
+        sink_bin.add_pad(gh_pad)
+        
+        return sink_bin
+    
+    
+    def aa(self):
         bus = self._bin.get_bus()
         bus.add_signal_watch()
         bus.enable_sync_message_emmision()
@@ -95,9 +150,6 @@ class cameraWidget(Gtk.VBox):
         bus.connect('sync-message::element', self._on_sync_message_handler)
     
     def _on_video_loading(self, widget, event):
-        print(widget)
-        print(event)
-        
         widget.hide()
         self._rec_image.set_from_stock(self.RECORD_IMAGE, Gtk.IconSize.LARGE_TOOLBAR)
         self._rec_text.set_text(self.RECORDING)
