@@ -19,6 +19,10 @@ from camerawidget import CameraWidget
         > 모션감지는 설정에 의해서 기능가능 여부를 판단한다 
 """
 class NvrWindow(Gtk.ApplicationWindow):
+    
+    cameras = dict()
+    MAX_CAMERA_NUM = 4
+    
     def __init__(self, app):
         Gtk.Window.__init__(self, title="PyCCTV NVR", application=app)
 
@@ -32,16 +36,29 @@ class NvrWindow(Gtk.ApplicationWindow):
         vbox = Gtk.VBox()
         self.add(vbox)
         
-        cam1 = CameraWidget("CAM1", source={'ip':'192.168.0.81', 'port':5000})
+        cam1 = CameraWidget("CAM1", source={'ip':'songsul.iptime.org', 'port':5000})
         vbox.add(cam1)
-        """self.videowidget = Gtk.DrawingArea()
-        self.videowidget.set_size_request(640, 480)
-        self.videowidget.modify_bg(Gtk.StateType.NORMAL, Gdk.Color(0, 0, 0))
-        vbox.add(self.videowidget)"""
+        
+        cam1_name = cam1.get_camera_name()
+        self.cameras[cam1_name] = cam1
     
-        #VideoPlayer(self)
-
         self.player = Gst.Pipeline.new('CCTV_NVR')
+        self.player.add(cam1.get_bin())
+        
+        bus = self.player.get_bus()
+        bus.add_signal_watch()
+        bus.enable_sync_message_emission()
+        
+        def sync_msg_handler(bus, msg):
+            if msg.get_structure().get_name() == "prepare-window-handle":
+                sink = msg.src
+                sink_name = sink.get_name()[:sink.get_name().find('_')]
+                
+                self.cameras[sink_name]._video_widget.set_sink(sink)
+                
+        bus.connect('sync-message::element', sync_msg_handler)
+        
+        self.player.set_state(Gst.State.PLAYING)
         
     def on_window_quit(self, window):
         self.player.set_state(Gst.State.NULL)

@@ -18,29 +18,37 @@ class CameraWidget(Gtk.VBox):
     def __init__(self, name, source={'ip':'127.0.0.1', 'port':5000}, size=(648, 365)):
         Gtk.VBox.__init__(self)
         
-        self._set_source(source)
-        self._set_camera_name(name)
+        self.is_playing = False
+        
+        self.__set_source(source)
+        self.__set_camera_name(name)
         self.set_size(size)
         self._setupUI()
-        
-    def _set_source(self, source):
-        self._source = source
-        
-    def _set_camera_name(self, name):
-        self._name = name
+        self.__createCameraBin()
         
     def get_camera_name(self):
-        return self._name
+        return self.__name
+
+    def get_bin(self):
+        return self.__camera_bin
+            
+    def __set_source(self, source):
+        self.__source = source
+        
+    def __set_camera_name(self, name):
+        self.__name = name
         
     def _setupUI(self):
-        self.is_playing = False
+        vbox = Gtk.VBox()
+        self.add(vbox)
+        
         self._overlay = Gtk.Overlay()
-        self.add(self._overlay)
+        self.vbox.add(self._overlay)
         
         # Video screen renderer object initialize
-        self._video_renderer = VideoWidget()
+        self._video_widget = VideoWidget()
         
-        self._overlay.add(self._video_renderer)
+        self._overlay.add(self._video_widget)
 
         self._logo_box = Gtk.EventBox()
         self._logo_box.set_halign(Gtk.Align.CENTER)
@@ -53,26 +61,62 @@ class CameraWidget(Gtk.VBox):
         self._logo_box.add(tim)
         self._overlay.add_overlay(self._logo_box)
         
+        #bottom part config
+        #device connect info, record info
         hbox = Gtk.HBox()
-        self.pack_end(hbox, False, True, 2)
+        self.vbox.pack_end(hbox, False, True, 2)
+        
+        self._spinner = Gtk.Spinner()
+        hbox.pack_start(self._spinner, False, False, 0)
+        self._spinner.set_margin_right(2)
+        self._spinner.stop()
+        
+        self._dev_name = Gtk.Label("Device(" + self.__name + ") not connected")
+        hbox.pack_start(self._dev_name, False, False, 0)
+        
+        hbox.pack_start(Gtk.Label(""), True, True, 0)
         
         #recording image setting
         self._rec_image = Gtk.Image()
         self._rec_image.set_from_stock(self.STOP_IMAGE, Gtk.IconSize.LARGE_TOOLBAR)
-        hbox.pack_start(self._rec_image, False, False, 0)
+        hbox.pack_end(self._rec_image, False, False, 0)
         
         self._rec_text = Gtk.Label(self.NOT_RECORD)
-        hbox.pack_start(self._rec_text, False, False, 0)
+        hbox.pack_end(self._rec_text, False, False, 0)
     
         self.show_all()
+    
+    
+    def __createCameraBin(self):
+        c_name = self.__name.lower()
+        self.__camera_bin = Gst.Bin.new(c_name + "_bin")
+        src = self.__createSourceBin()
+        self.__camera_bin.add(src)
         
-    def _createSourceBin(self):
-        c_name = self._name.lower() 
+        tee = Gst.ElementFactory.make('tee', c_name + "_tee")
+        self.__camera_bin.add(tee)
+        
+        vidsink = self.__createVideoSinkBin()
+        self.__camera_bin.add(vidsink)
+        
+        src.link(tee)
+        
+        src_pad = tee.get_request_pad("src_%u")
+        src_pad.link(vidsink.get_static_pad('sink'))
+        
+        ret = self.__camera_bin.set_state(Gst.State.READY)
+        if ret != Gst.StateChangeReturn.FAILURE:
+            print("State of " + c_name.upper() + " change Failured.")
+            self.__camera_bin.set_state(Gst.State.NULL)
+        
+        
+    def __createSourceBin(self):
+        c_name = self.__name.lower() 
         source_bin = Gst.Bin.new(c_name + "_src_bin")
         
         cam_src = Gst.ElementFactory.make('tcpclientsrc', c_name + "_src")
-        cam_src.set_property('host', self._source["ip"])
-        cam_src.set_property('port', self._source["port"])
+        cam_src.set_property('host', self.__source["ip"])
+        cam_src.set_property('port', self.__source["port"])
         source_bin.add(cam_src)
         
         gdpdepay = Gst.ElementFactory.make('gdpdepay', None)
@@ -90,15 +134,15 @@ class CameraWidget(Gtk.VBox):
         
         dec_pad = avdec.get_static_pad('src')
         gh_pad = Gst.GhostPad.new('src', dec_pad)
-        dec_pad.link(gh_pad)
+        gh_pad.set_active(True)
         source_bin.add_pad(gh_pad)
         
         return source_bin
         
         
-    def _createVideoSinkBin(self):
-        #self._tee = Gst.ElementFactory.make('tee', self._name.lower() + "_tee")
-        c_name = self._name.lower()
+    def __createVideoSinkBin(self):
+        #self._tee = Gst.ElementFactory.make('tee', self.__name.lower() + "_tee")
+        c_name = self.__name.lower()
         
         sink_bin = Gst.Bin.new(c_name + "_vidsink_bin")
         
@@ -119,8 +163,8 @@ class CameraWidget(Gtk.VBox):
         capsfilter.set_property('caps', caps)
         sink_bin.add(capsfilter)
         
-        conv2 = Gst.ElementFactory.make('videoconvert', None)
-        sink_bin.add(conv2)
+        #conv2 = Gst.ElementFactory.make('videoconvert', None)
+        #sink_bin.add(conv2)
         
         self._vid_sink = Gst.ElementFactory.make('autovideosink', c_name + "_videosink")
         self._vid_sink.set_property('sync', False)
@@ -130,12 +174,13 @@ class CameraWidget(Gtk.VBox):
         conv1.link(crop)
         crop.link(scale)
         scale.link(capsfilter)
-        capsfilter.link(conv2)
-        conv2.link(self._vid_sink)
+        capsfilter.link(self._vid_sink)
+        #capsfilter.link(conv2)
+        #conv2.link(self._vid_sink)
         
         q_pad = queue.get_static_pad('sink')
         gh_pad = Gst.GhostPad.new('sink', q_pad)
-        gh_pad.link(q_pad)
+        gh_pad.set_active(True)
         sink_bin.add_pad(gh_pad)
         
         return sink_bin
@@ -144,13 +189,17 @@ class CameraWidget(Gtk.VBox):
     def aa(self):
         bus = self._bin.get_bus()
         bus.add_signal_watch()
-        bus.enable_sync_message_emmision()
+        bus.enable_sync_message_emission()
         
         bus.connect('message', self._on_message_handler)
         bus.connect('sync-message::element', self._on_sync_message_handler)
     
     def _on_video_loading(self, widget, event):
         widget.hide()
+        
+        self._spinner.start()
+        self._dev_name.set_text("Device( " + self.__name + " ) is connecting...")
+        
         self._rec_image.set_from_stock(self.RECORD_IMAGE, Gtk.IconSize.LARGE_TOOLBAR)
         self._rec_text.set_text(self.RECORDING)
         
@@ -170,8 +219,6 @@ class CameraWidget(Gtk.VBox):
     def _on_sync_message_handler(self, bus, msg):
         if msg.get_structure().get_name() == "prepare-window-handle":
             videosink = msg.src
-            videosink.set_property('force-aspect-ratio', True)
-            videosink.set_window_handle(self._video_renderer.get_property('window').get_xid())
         
         
     def get_size(self):
