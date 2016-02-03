@@ -25,6 +25,7 @@ class NvrWindow(Gtk.ApplicationWindow):
     
     def __init__(self, app):
         Gtk.Window.__init__(self, title="PyCCTV NVR", application=app)
+        self.app = app
 
         self.setupUI()
 
@@ -39,7 +40,8 @@ class NvrWindow(Gtk.ApplicationWindow):
         cam1 = CameraWidget("CAM1", source={'ip':'songsul.iptime.org', 'port':5000})
         vbox.add(cam1)
         
-        cam1_name = cam1.get_camera_name()
+        cam1_name = cam1.get_camera_name().lower()
+        print("Cam1 name : %s" % cam1_name)
         self.cameras[cam1_name] = cam1
     
         self.player = Gst.Pipeline.new('CCTV_NVR')
@@ -53,8 +55,8 @@ class NvrWindow(Gtk.ApplicationWindow):
             if msg.get_structure().get_name() == "prepare-window-handle":
                 sink = msg.src
                 sink_name = sink.get_name()[:sink.get_name().find('_')]
-                
-                self.cameras[sink_name]._video_widget.set_sink(sink)
+                print("Sink name : %s" % sink_name)
+                self.cameras[sink_name].video_widget.set_sink(sink)
                 
         bus.connect('sync-message::element', sync_msg_handler)
         
@@ -62,6 +64,7 @@ class NvrWindow(Gtk.ApplicationWindow):
         
     def on_window_quit(self, window):
         self.player.set_state(Gst.State.NULL)
+        self.app.quit()
         
     def on_message(self, bus, msg):
         pass
@@ -72,8 +75,8 @@ class PurunNVR(Gtk.Application):
         Gtk.Application.__init__(self)
         
     def do_activate(self):
-        window = NvrWindow(self)
-        window.show_all()
+        self.window = NvrWindow(self)
+        self.window.show_all()
         
     def do_startup(self):
         Gtk.Application.do_startup(self)

@@ -15,7 +15,7 @@ class CameraWidget(Gtk.VBox):
     STOP_IMAGE = Gtk.STOCK_MEDIA_STOP
     RECORD_IMAGE = Gtk.STOCK_MEDIA_RECORD
     
-    def __init__(self, name, source={'ip':'127.0.0.1', 'port':5000}, size=(648, 365)):
+    def __init__(self, name, source={'ip':'127.0.0.1', 'port':5000}, size=(640, 360), save_timeout=60):
         Gtk.VBox.__init__(self)
         
         self.is_playing = False
@@ -23,6 +23,7 @@ class CameraWidget(Gtk.VBox):
         self.__set_source(source)
         self.__set_camera_name(name)
         self.set_size(size)
+        self.set_save_timeout(save_timeout)
         self._setupUI()
         self.__createCameraBin()
         
@@ -38,17 +39,24 @@ class CameraWidget(Gtk.VBox):
     def __set_camera_name(self, name):
         self.__name = name
         
+    def set_save_timeout(self, timeout):
+        self.__save_timeout = timeout
+        
+    def get_save_timeout(self):
+        return self.__save_timeout
+        
     def _setupUI(self):
         vbox = Gtk.VBox()
         self.add(vbox)
         
         self._overlay = Gtk.Overlay()
-        self.vbox.add(self._overlay)
+        vbox.pack_start(self._overlay, True, True, 0)
         
         # Video screen renderer object initialize
-        self._video_widget = VideoWidget()
+        self.video_widget = VideoWidget()
+        self.video_widget.set_size_request(self._size[0], self._size[1])
         
-        self._overlay.add(self._video_widget)
+        self._overlay.add(self.video_widget)
 
         self._logo_box = Gtk.EventBox()
         self._logo_box.set_halign(Gtk.Align.CENTER)
@@ -64,11 +72,12 @@ class CameraWidget(Gtk.VBox):
         #bottom part config
         #device connect info, record info
         hbox = Gtk.HBox()
-        self.vbox.pack_end(hbox, False, True, 2)
+        vbox.pack_end(hbox, False, True, 2)
         
         self._spinner = Gtk.Spinner()
         hbox.pack_start(self._spinner, False, False, 0)
-        self._spinner.set_margin_right(2)
+        self._spinner.set_margin_left(5)
+        self._spinner.set_margin_right(5)
         self._spinner.stop()
         
         self._dev_name = Gtk.Label("Device(" + self.__name + ") not connected")
@@ -79,7 +88,7 @@ class CameraWidget(Gtk.VBox):
         #recording image setting
         self._rec_image = Gtk.Image()
         self._rec_image.set_from_stock(self.STOP_IMAGE, Gtk.IconSize.LARGE_TOOLBAR)
-        hbox.pack_end(self._rec_image, False, False, 0)
+        hbox.pack_start(self._rec_image, False, False, 0)
         
         self._rec_text = Gtk.Label(self.NOT_RECORD)
         hbox.pack_end(self._rec_text, False, False, 0)
@@ -105,7 +114,7 @@ class CameraWidget(Gtk.VBox):
         src_pad.link(vidsink.get_static_pad('sink'))
         
         ret = self.__camera_bin.set_state(Gst.State.READY)
-        if ret != Gst.StateChangeReturn.FAILURE:
+        if ret == Gst.StateChangeReturn.FAILURE:
             print("State of " + c_name.upper() + " change Failured.")
             self.__camera_bin.set_state(Gst.State.NULL)
         
@@ -158,7 +167,7 @@ class CameraWidget(Gtk.VBox):
         scale = Gst.ElementFactory.make('videoscale', None)
         sink_bin.add(scale)
         
-        caps = Gst.caps_from_string("video/x-raw, width=648, height=365")
+        caps = Gst.caps_from_string("video/x-raw, width=" + str(self._size[0]) + ", height=" + str(self._size[1]))
         capsfilter = Gst.ElementFactory.make('capsfilter', None)
         capsfilter.set_property('caps', caps)
         sink_bin.add(capsfilter)
@@ -166,7 +175,7 @@ class CameraWidget(Gtk.VBox):
         #conv2 = Gst.ElementFactory.make('videoconvert', None)
         #sink_bin.add(conv2)
         
-        self._vid_sink = Gst.ElementFactory.make('autovideosink', c_name + "_videosink")
+        self._vid_sink = Gst.ElementFactory.make('xvimagesink', c_name + "_videosink")
         self._vid_sink.set_property('sync', False)
         sink_bin.add(self._vid_sink)
         

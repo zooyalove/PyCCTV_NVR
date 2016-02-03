@@ -16,14 +16,16 @@ class VideoWidget(Gtk.DrawingArea):
         
     def do_expose_event(self, event):
         if self._sink is not None:
-            self._sink.expose()
+            #self._sink.expose()
             return False
         else:
             return True
         
     def set_sink(self, sink):
-        self._xid = self.get_property('window').get_xid()
+        #self._xid = self.get_property('window').get_xid()
+        self._xid = self.get_window().get_xid()
         self._sink = sink
         self._sink.set_property('force-aspect-ratio', True)
+        #self._sink.handle_events(False)
         self._sink.set_window_handle(self._xid)
         
