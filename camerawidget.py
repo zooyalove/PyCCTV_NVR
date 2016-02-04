@@ -1,3 +1,4 @@
+import platform
 import gi
 import sys
 gi.require_version('Gtk', '3.0')
@@ -7,6 +8,7 @@ from pushbullet import Pushbullet
 from videowidget import VideoWidget
 
 class CameraWidget(Gtk.VBox):
+    IS_LINUX = (platform.system().lower() == "linux")
     NOT_RECORD = "Don't Recoding."
     RECORDING = "Now Recording..."
     DEVICE_CONNECTING = "Camera connecting..."
@@ -53,7 +55,7 @@ class CameraWidget(Gtk.VBox):
         vbox.pack_start(self._overlay, True, True, 0)
         
         # Video screen renderer object initialize
-        self.video_widget = VideoWidget()
+        self.video_widget = VideoWidget(self)
         self.video_widget.set_size_request(self._size[0], self._size[1])
         
         self._overlay.add(self.video_widget)
@@ -175,7 +177,10 @@ class CameraWidget(Gtk.VBox):
         #conv2 = Gst.ElementFactory.make('videoconvert', None)
         #sink_bin.add(conv2)
         
-        self._vid_sink = Gst.ElementFactory.make('xvimagesink', c_name + "_videosink")
+        if self.IS_LINUX:
+            self._vid_sink = Gst.ElementFactory.make('xvimagesink', c_name + "_videosink")
+        else:
+            self._vid_sink = Gst.ElementFactory.make('d3dvideosink', c_name + "_videosink")
         self._vid_sink.set_property('sync', False)
         sink_bin.add(self._vid_sink)
         
