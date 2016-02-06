@@ -60,6 +60,8 @@ class NvrWindow(Gtk.ApplicationWindow):
                 
         bus.connect('sync-message::element', sync_msg_handler)
         
+        self.show_all()
+        
         self.player.set_state(Gst.State.PLAYING)
         
     def on_window_quit(self, window):
@@ -76,7 +78,6 @@ class PurunNVR(Gtk.Application):
         
     def do_activate(self):
         self.window = NvrWindow(self)
-        self.window.show_all()
         
     def do_startup(self):
         Gtk.Application.do_startup(self)

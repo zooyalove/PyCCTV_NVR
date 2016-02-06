@@ -1,4 +1,5 @@
-import os
+import os, time, threading
+
 import gi
 gi.require_version('Gst', '1.0')
 gi.require_version('Gtk', '3.0')
@@ -19,35 +20,60 @@ class FaceDetect(object):
         self.da.modify_bg(Gtk.StateType.NORMAL, Gdk.Color(0, 0, 0))
         self.window.add(self.da)
         
-        self.pipe = Gst.ElementFactory.make('pipeline', 'record_test')
-        tcpsrc = Gst.ElementFactory.make('tcpclientsrc', None)
-        tcpsrc.set_property('host', "192.168.0.79")
+        self.pipe = Gst.Pipeline.new('record_test')
+        tcpsrc = Gst.ElementFactory.make('tcpclientsrc', 'tcpsrc')
+        #tcpsrc.set_property('host', "192.168.0.79")
+        tcpsrc.set_property('host', "songsul.iptime.org")
         tcpsrc.set_property('port', 5001)
+        self.pipe.add(tcpsrc)
+        
+        q = Gst.ElementFactory.make('queue', None)
+        self.pipe.add(q)
+        
         gdpdepay = Gst.ElementFactory.make('gdpdepay', None)
+        self.pipe.add(gdpdepay)
         rtpdepay = Gst.ElementFactory.make('rtph264depay', None)
+        self.pipe.add(rtpdepay)
+        avdec = Gst.ElementFactory.make('avdec_h264', None)
+        self.pipe.add(avdec)
+        conv = Gst.ElementFactory.make('videoconvert', None)
+        self.pipe.add(conv)
+        x264enc = Gst.ElementFactory.make('x264enc', 'iframe')
+        x264enc.set_property('tune', 'zerolatency')
+        self.pipe.add(x264enc)
         tee = Gst.ElementFactory.make('tee', None)
+        self.pipe.add(tee)
         
         monitor_q = Gst.ElementFactory.make('queue', None)
-        avdec = Gst.ElementFactory.make('avdec_h264', None)
+        self.pipe.add(monitor_q)
+        avdec2 = Gst.ElementFactory.make('avdec_h264', None)
+        self.pipe.add(avdec2)
         vidconv = Gst.ElementFactory.make('videoconvert', None)
-        monitor_sink = Gst.ElementFactory.make('autovideosink', None)
+        self.pipe.add(vidconv)
+        #monitor_sink = Gst.ElementFactory.make('autovideosink', None)
+        monitor_sink = Gst.ElementFactory.make('xvimagesink', None)
         monitor_sink.set_property('sync', False)
+        self.pipe.add(monitor_sink)
 
         record_q = Gst.ElementFactory.make('queue', None)
         record_q.set_property('leaky', 2)
+        record_q.set_property('max-size-time', 5 * Gst.SECOND)
+        self.pipe.add(record_q)
         record_sink = Gst.ElementFactory.make('appsink', None)
         record_sink.set_property('emit-signals', True)
         record_sink.connect('new-sample', self.on_new_sample_recsink)
+        self.pipe.add(record_sink)
         
-        for ele in (tcpsrc, gdpdepay, rtpdepay, tee, monitor_q, avdec, vidconv, monitor_sink, record_q, record_sink):
-            self.pipe.add(ele)
-
-        tcpsrc.link(gdpdepay)
+        tcpsrc.link(q)
+        q.link(gdpdepay)
         gdpdepay.link(rtpdepay)
-        rtpdepay.link(tee)
+        rtpdepay.link(avdec)
+        avdec.link(conv)
+        conv.link(x264enc)
+        x264enc.link(tee)
         
-        monitor_q.link(avdec)
-        avdec.link(vidconv)
+        monitor_q.link(avdec2)
+        avdec2.link(vidconv)
         vidconv.link(monitor_sink)
         
         record_q.link(record_sink)
@@ -55,14 +81,10 @@ class FaceDetect(object):
         t_pad = tee.get_request_pad('src_%u')
         q_pad = monitor_q.get_static_pad('sink')
         t_pad.link(q_pad)
-        t_pad.unref()
-        q_pad.unref()
         
         t_pad = tee.get_request_pad('src_%u')
         q_pad = record_q.get_static_pad('sink')
         t_pad.link(q_pad)
-        t_pad.unref()
-        q_pad.unref()
          
         bus = self.pipe.get_bus()
         bus.add_signal_watch()
@@ -72,7 +94,7 @@ class FaceDetect(object):
         bus.unref()
         
         """ Video Recording Element Initialize """
-        self.rec_pipe = Gst.ElementFactory.make('pipeline', 'recored_pipeline')
+        self.rec_pipe = Gst.ElementFactory.make('pipeline', 'record_pipeline')
         
         self.rec_src = Gst.ElementFactory.make('appsrc', 'rec_src')
         self.rec_pipe.add(self.rec_src)
@@ -81,6 +103,7 @@ class FaceDetect(object):
         self.rec_pipe.add(parse)
         
         mp4mux = Gst.ElementFactory.make('mp4mux', None)
+        mp4mux.set_property('streamable', True)
         self.rec_pipe.add(mp4mux)
         
         self.filesink = Gst.ElementFactory.make('filesink', None)
@@ -97,27 +120,31 @@ class FaceDetect(object):
         rec_bus.unref()
         
         self.rec_timer_id = 0
+        self.rec_lock = threading.Lock()
 
         self.window.show_all()
                 
         self.pipe.set_state(Gst.State.PLAYING)
+        
         
     def on_new_sample_recsink(self, appsink):
         sample = appsink.pull_sample()
         buffer = sample.get_buffer()
         caps = sample.get_caps()
         
-        if self.rec_src.get_state() == Gst.State.PLAYING:
-            print("%" + Gst.TIME_FORMAT + " <= " % Gst.TIME_ARGS(buffer.dts))
-            
+        nowstate = self.rec_src.get_state(Gst.CLOCK_TIME_NONE)[1] 
+        if nowstate == Gst.State.PLAYING:
+            print("Buffer pts time is %d" % buffer.pts)
+            #print("Buffer dts time is %s" % GLib.DateTime.new_from_unix_local(int(buffer.dts/Gst.USECOND)).format("%F %H:%M:%S"))
             self.rec_src.set_caps(caps)
             self.rec_src.push_buffer(buffer)
-            
-        sample.unref()
-        
+        else:
+            self.start_recording()
+         
         return Gst.FlowReturn.OK
     
     def start_recording(self):
+        #self.rec_lock.acquire()
         if self.rec_timer_id != 0:
             print("### Will continue recording ###")
             GLib.Source.remove(self.rec_timer_id)
@@ -128,30 +155,44 @@ class FaceDetect(object):
             g_datetime = datetime.to_g_date_time()
             timestamp = g_datetime.format("%F_%H:%M:%S")
             filename = timestamp + ".mp4"
+            print("Filename : %s." % filename)
+            print("Current directory's name : %s." % os.path.curdir)
             filepath = os.path.abspath(os.path.join(os.path.curdir, filename))
+            print("Totally filepath is ' %s '." % filepath)
             self.filesink.set_property('location', filepath)
             self.filesink.set_property('async', False)
             
-            GLib.free(timestamp)
-            GLib.free(filename)
-            GLib.free(filepath)
-            g_datetime.unref()
-            datetime.unref()
-            
-            self.start_timer()
-            
             self.rec_pipe.set_state(Gst.State.PLAYING)
     
+            self.start_timer()
+            
+        #self.rec_lock.release()  
+        #self.request_iframe()
     
+    def request_iframe(self):
+        src = self.pipe.get_by_name('iframe')
+        event = GstVideo.video_event_new_downstream_force_key_unit(Gst.CLOCK_TIME_NONE, Gst.CLOCK_TIME_NONE, Gst.CLOCK_TIME_NONE, True, 0)
+        src.send_event(event)
+        src.unref()
+        
     def start_timer(self):
-        self.rec_timer_id = GLib.timeout_add_seconds(10 * Gst.SECOND, self.stop_recording)
+        self.rec_lock.acquire()
+        self.rec_timer_id = GLib.timeout_add_seconds(30, self.stop_recording)
+        self.rec_lock.release()
         
         
     def stop_recording(self):
-        self.rec_src.end_of_stream()
-        self.rec_timer_id = 0
-        print("Recording stopped")
+        self.rec_lock.acquire()
+        ret = self.rec_src.end_of_stream()
+        if ret == Gst.FlowReturn.OK:
+            self.rec_timer_id = 0
+            time.sleep(2)
+            print("Recording stopped")
+            self.start_recording()
+        self.rec_lock.release()
+        
         return False
+    
         
     def on_sync_message_cb(self, bus, msg):
         if msg.get_structure().get_name() == "prepare-window-handle":
@@ -180,7 +221,8 @@ class FaceDetect(object):
                 print("Additional debug info:\n%s" % debug)
             
         elif t == Gst.MessageType.EOS:
-            self.rec_pipe.set_state(Gst.State.NULL)
+            print("End-Of-Stream received.")
+            self.rec_pipe.set_state(Gst.State.READY)
             
         return True
     
@@ -190,7 +232,8 @@ class FaceDetect(object):
         if t == Gst.MessageType.STATE_CHANGED:
             newstate = msg.parse_state_changed()[1]
             if newstate == Gst.State.PLAYING:
-                self.start_recording()
+                #self.start_recording()
+                pass
                 
         elif t == Gst.MessageType.ERROR:
             name = msg.src.get_path_string()
@@ -199,7 +242,7 @@ class FaceDetect(object):
             if debug is not None:
                 print("Additional debug info : \n%s" % debug)
             
-            Gtk.main_quit()
+            self.on_quit(None)
             
         elif t == Gst.MessageType.WARNING:
             name = msg.src.get_path_string()
@@ -210,7 +253,7 @@ class FaceDetect(object):
             
         elif t == Gst.MessageType.EOS:
             print("Got EOS")
-            Gtk.main_quit()
+            self.on_quit(None)
         pass
                     
     def on_quit(self, window):

@@ -9,6 +9,8 @@ if platform.system().lower() == "linux":
 else:
     from gi.repository import GdkWin32
 
+print(platform.system())
+
 class VideoWidget(Gtk.DrawingArea):
     
     def __init__(self, parent):
