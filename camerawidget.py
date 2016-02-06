@@ -199,15 +199,6 @@ class CameraWidget(Gtk.VBox):
         
         return sink_bin
     
-    
-    def aa(self):
-        bus = self._bin.get_bus()
-        bus.add_signal_watch()
-        bus.enable_sync_message_emission()
-        
-        bus.connect('message', self._on_message_handler)
-        bus.connect('sync-message::element', self._on_sync_message_handler)
-    
     def _on_video_loading(self, widget, event):
         widget.hide()
         
@@ -216,24 +207,6 @@ class CameraWidget(Gtk.VBox):
         
         self._rec_image.set_from_stock(self.RECORD_IMAGE, Gtk.IconSize.LARGE_TOOLBAR)
         self._rec_text.set_text(self.RECORDING)
-        
-    def _on_message_handler(self, bus, msg):
-        t = msg.type
-        if t == Gst.MessageType.ERROR:
-            err, debug = msg.parse_error()
-            print("Error received from element %s: %s" % (msg.src.get_name(), err))
-            print("Debugging information : %s" % debug)
-            self.player.set_state(Gst.State.NULL)
-        elif t == Gst.MessageType.EOS:
-            print("End-Of-Stream reached.")
-            self.player.set_state(Gst.State.NULL)
-        else:
-            print("Not know message received.")
-    
-    def _on_sync_message_handler(self, bus, msg):
-        if msg.get_structure().get_name() == "prepare-window-handle":
-            videosink = msg.src
-        
         
     def get_size(self):
         self._size
