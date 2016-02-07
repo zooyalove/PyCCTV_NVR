@@ -1,4 +1,5 @@
 import os, time, threading
+import platform
 
 import gi
 gi.require_version('Gst', '1.0')
@@ -22,8 +23,8 @@ class FaceDetect(object):
         
         self.pipe = Gst.Pipeline.new('record_test')
         tcpsrc = Gst.ElementFactory.make('tcpclientsrc', 'tcpsrc')
-        #tcpsrc.set_property('host', "192.168.0.79")
-        tcpsrc.set_property('host', "songsul.iptime.org")
+        tcpsrc.set_property('host', "192.168.0.79")
+        #tcpsrc.set_property('host', "songsul.iptime.org")
         tcpsrc.set_property('port', 5001)
         self.pipe.add(tcpsrc)
         
@@ -36,29 +37,27 @@ class FaceDetect(object):
         self.pipe.add(rtpdepay)
         avdec = Gst.ElementFactory.make('avdec_h264', None)
         self.pipe.add(avdec)
-        conv = Gst.ElementFactory.make('videoconvert', None)
-        self.pipe.add(conv)
-        x264enc = Gst.ElementFactory.make('x264enc', 'iframe')
-        x264enc.set_property('tune', 'zerolatency')
-        self.pipe.add(x264enc)
         tee = Gst.ElementFactory.make('tee', None)
         self.pipe.add(tee)
         
         monitor_q = Gst.ElementFactory.make('queue', None)
         self.pipe.add(monitor_q)
-        avdec2 = Gst.ElementFactory.make('avdec_h264', None)
-        self.pipe.add(avdec2)
         vidconv = Gst.ElementFactory.make('videoconvert', None)
         self.pipe.add(vidconv)
-        #monitor_sink = Gst.ElementFactory.make('autovideosink', None)
-        monitor_sink = Gst.ElementFactory.make('xvimagesink', None)
+        monitor_sink = Gst.ElementFactory.make('autovideosink', None)
+        #monitor_sink = Gst.ElementFactory.make('xvimagesink', None)
         monitor_sink.set_property('sync', False)
         self.pipe.add(monitor_sink)
 
         record_q = Gst.ElementFactory.make('queue', None)
-        record_q.set_property('leaky', 2)
-        record_q.set_property('max-size-time', 5 * Gst.SECOND)
+        #record_q.set_property('leaky', 2)
+        #record_q.set_property('max-size-time', 5 * Gst.SECOND)
         self.pipe.add(record_q)
+        conv = Gst.ElementFactory.make('videoconvert', None)
+        self.pipe.add(conv)
+        x264enc = Gst.ElementFactory.make('x264enc', 'iframe')
+        x264enc.set_property('tune', 0x00000004)
+        self.pipe.add(x264enc)
         record_sink = Gst.ElementFactory.make('appsink', None)
         record_sink.set_property('emit-signals', True)
         record_sink.connect('new-sample', self.on_new_sample_recsink)
@@ -68,15 +67,14 @@ class FaceDetect(object):
         q.link(gdpdepay)
         gdpdepay.link(rtpdepay)
         rtpdepay.link(avdec)
-        avdec.link(conv)
-        conv.link(x264enc)
-        x264enc.link(tee)
+        avdec.link(tee)
         
-        monitor_q.link(avdec2)
-        avdec2.link(vidconv)
+        monitor_q.link(vidconv)
         vidconv.link(monitor_sink)
         
-        record_q.link(record_sink)
+        record_q.link(conv)
+        conv.link(x264enc)
+        x264enc.link(record_sink)
         
         t_pad = tee.get_request_pad('src_%u')
         q_pad = monitor_q.get_static_pad('sink')
@@ -155,11 +153,14 @@ class FaceDetect(object):
             g_datetime = datetime.to_g_date_time()
             timestamp = g_datetime.format("%F_%H:%M:%S")
             filename = timestamp + ".mp4"
-            print("Filename : %s." % filename)
-            print("Current directory's name : %s." % os.path.curdir)
+            print("Filename : %s" % filename)
+            print("Current directory's name : %s" % os.path.curdir)
             filepath = os.path.abspath(os.path.join(os.path.curdir, filename))
-            print("Totally filepath is ' %s '." % filepath)
-            self.filesink.set_property('location', filepath)
+            print("Totally filepath is ' %s '" % filepath)
+            if platform.system().lower() != "linux":
+                self.filesink.set_property('location', ""+filename)
+            else:
+                self.filesink.set_property('location', filepath)
             self.filesink.set_property('async', False)
             
             self.rec_pipe.set_state(Gst.State.PLAYING)
