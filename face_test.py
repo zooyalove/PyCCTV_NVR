@@ -123,7 +123,10 @@ class FaceDetect(object):
         self.window.show_all()
                 
         self.pipe.set_state(Gst.State.PLAYING)
+        print("레코딩 시작")
         self.start_recording()
+        Gst.debug_bin_to_dot_file(self.pipe, Gst.DebugGraphDetails.ALL, 'appsink_src_recording_test')
+        Gst.debug_bin_to_dot_file(self.rec_pipe, Gst.DebugGraphDetails.ALL, 'record_pipe_test')
         
         
     def on_new_sample_recsink(self, appsink):
