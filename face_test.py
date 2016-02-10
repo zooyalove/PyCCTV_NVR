@@ -1,5 +1,6 @@
 import os, time, threading
 import platform
+from datetime import datetime
 
 import gi
 gi.require_version('Gst', '1.0')
@@ -24,8 +25,8 @@ class FaceDetect(object):
         
         self.pipe = Gst.Pipeline.new('record_test')
         tcpsrc = Gst.ElementFactory.make('tcpclientsrc', 'tcpsrc')
-        tcpsrc.set_property('host', "192.168.0.79")
-        #tcpsrc.set_property('host', "songsul.iptime.org")
+        #tcpsrc.set_property('host', "192.168.0.79")
+        tcpsrc.set_property('host', "songsul.iptime.org")
         tcpsrc.set_property('port', 5001)
         self.pipe.add(tcpsrc)
         
@@ -36,13 +37,15 @@ class FaceDetect(object):
         self.pipe.add(gdpdepay)
         rtpdepay = Gst.ElementFactory.make('rtph264depay', None)
         self.pipe.add(rtpdepay)
-        avdec = Gst.ElementFactory.make('avdec_h264', None)
-        self.pipe.add(avdec)
+        parser = Gst.ElementFactory.make('h264parse', None)
+        self.pipe.add(parser)
         tee = Gst.ElementFactory.make('tee', None)
         self.pipe.add(tee)
         
         monitor_q = Gst.ElementFactory.make('queue', None)
         self.pipe.add(monitor_q)
+        avdec = Gst.ElementFactory.make('avdec_h264', None)
+        self.pipe.add(avdec)
         vidconv = Gst.ElementFactory.make('videoconvert', None)
         self.pipe.add(vidconv)
         #monitor_sink = Gst.ElementFactory.make('autovideosink', None)
@@ -51,18 +54,11 @@ class FaceDetect(object):
         self.pipe.add(monitor_sink)
 
         record_q = Gst.ElementFactory.make('queue', None)
-        #record_q.set_property('leaky', 2)
         record_q.set_property('max-size-time', 30 * Gst.SECOND)
         self.pipe.add(record_q)
-        conv = Gst.ElementFactory.make('videoconvert', None)
-        self.pipe.add(conv)
-        x264enc = Gst.ElementFactory.make('x264enc', 'iframe')
-        x264enc.set_property('tune', 0x00000004)
-        self.pipe.add(x264enc)
-        caps = Gst.caps_from_string("video/x-h264, profile=baseline, width=1280, height=720")
-        filter = Gst.ElementFactory.make('capsfilter', None)
-        self.pipe.add(filter)
-        filter.set_property('caps', caps)
+        capsfilter = Gst.ElementFactory.make('capsfilter', None)
+        capsfilter.set_property('caps', Gst.caps_from_string("video/x-h264, profile=baseline"))
+        self.pipe.add(capsfilter)
         record_sink = Gst.ElementFactory.make('appsink', None)
         record_sink.set_property('emit-signals', True)
         record_sink.connect('new-sample', self.on_new_sample_recsink)
@@ -70,16 +66,15 @@ class FaceDetect(object):
         
         tcpsrc.link(gdpdepay)
         gdpdepay.link(rtpdepay)
-        rtpdepay.link(avdec)
-        avdec.link(tee)
+        rtpdepay.link(parser)
+        parser.link(tee)
         
-        monitor_q.link(vidconv)
+        monitor_q.link(avdec)
+        avdec.link(vidconv)
         vidconv.link(monitor_sink)
         
-        record_q.link(conv)
-        conv.link(x264enc)
-        x264enc.link(filter)
-        filter.link(record_sink)
+        record_q.link(capsfilter)
+        capsfilter.link(record_sink)
         
         t_pad = tee.get_request_pad('src_%u')
         q_pad = monitor_q.get_static_pad('sink')
@@ -100,21 +95,27 @@ class FaceDetect(object):
         self.rec_pipe = Gst.ElementFactory.make('pipeline', 'record_pipeline')
         
         self.rec_src = Gst.ElementFactory.make('appsrc', 'rec_src')
+        self.rec_src.set_property('do-timestamp', True)
         self.rec_pipe.add(self.rec_src)
         
-        parse = Gst.ElementFactory.make('h264parse', None)
-        self.rec_pipe.add(parse)
-        
+        avdec2 = Gst.ElementFactory.make('avdec_h264', None)
+        self.rec_pipe.add(avdec2)
+        conv = Gst.ElementFactory.make('videoconvert', None)
+        self.rec_pipe.add(conv)
+        x264enc = Gst.ElementFactory.make('x264enc', None)
+        x264enc.set_property('tune', 0x00000004)
+        self.rec_pipe.add(x264enc)
         mp4mux = Gst.ElementFactory.make('mp4mux', None)
-        #mp4mux.set_property('streamable', True)
         self.rec_pipe.add(mp4mux)
         
         self.filesink = Gst.ElementFactory.make('filesink', None)
         self.filesink.set_property('async', False)
         self.rec_pipe.add(self.filesink)
         
-        self.rec_src.link(parse)
-        parse.link(mp4mux)
+        self.rec_src.link(avdec2)
+        avdec2.link(conv)
+        conv.link(x264enc)
+        x264enc.link(mp4mux)
         mp4mux.link(self.filesink)
         
         rec_bus = self.rec_pipe.get_bus()
@@ -141,19 +142,18 @@ class FaceDetect(object):
         caps = sample.get_caps()
         
         self.rec_lock.acquire()
-        print("레코딩 샘플 Lock 시작")
+        #print("레코딩 샘플 Lock 시작")
         nowstate = self.rec_pipe.get_state(Gst.CLOCK_TIME_NONE)[1] 
         if nowstate == Gst.State.PLAYING:
             self.rec_src.set_caps(caps)
             self.rec_src.push_buffer(buffer)
          
         self.rec_lock.release()
-        print("레코딩 샘플 Lock 끝")
+        #print("레코딩 샘플 Lock 끝")
         
         return Gst.FlowReturn.OK
     
     def start_recording(self):
-        #self.rec_lock.acquire()
         print("레코딩 Lock 시작")
         if self.rec_timer_id != 0:
             print("### Will continue recording ###")
@@ -176,16 +176,8 @@ class FaceDetect(object):
     
             self.start_timer()
             
-        #self.rec_lock.release()
         print("레코딩 Lock 끝")
-        #self.request_iframe()
     
-    def request_iframe(self):
-        src = self.pipe.get_by_name('iframe')
-        event = GstVideo.video_event_new_downstream_force_key_unit(Gst.CLOCK_TIME_NONE, Gst.CLOCK_TIME_NONE, Gst.CLOCK_TIME_NONE, True, 0)
-        src.send_event(event)
-        src.unref()
-        
     def start_timer(self):
         self.rec_lock.acquire()
         print("타이머 Lock 시작")
@@ -199,6 +191,7 @@ class FaceDetect(object):
         self.rec_lock.acquire()
         print("레코딩 중지 Lock 시작")
         self.rec_src.end_of_stream()
+        print(datetime.now())
         print("Recording stopped")
         self.rec_lock.release()
         print("레코딩 중지 Lock 끝")
@@ -234,6 +227,7 @@ class FaceDetect(object):
                 print("Additional debug info:\n%s" % debug)
             
         elif t == Gst.MessageType.EOS:
+            print(datetime.now())
             print("End-Of-Stream received.")
             self.rec_timer_id = 0
             self.rec_pipe.set_state(Gst.State.NULL)
@@ -244,13 +238,7 @@ class FaceDetect(object):
             
     def on_message_cb(self, bus, msg):
         t = msg.type
-        if t == Gst.MessageType.STATE_CHANGED:
-            newstate = msg.parse_state_changed()[1]
-            if newstate == Gst.State.PLAYING:
-                #self.start_recording()
-                pass
-                
-        elif t == Gst.MessageType.ERROR:
+        if t == Gst.MessageType.ERROR:
             name = msg.src.get_path_string()
             err, debug = msg.parse_error()
             print("Main pipeline -> Error : from element %s : %s ." % (name, err.message))
