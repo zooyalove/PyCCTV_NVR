@@ -96,7 +96,7 @@ class FaceDetect(object):
         self.rec_pipe = Gst.ElementFactory.make('pipeline', 'record_pipeline')
         
         self.rec_src = Gst.ElementFactory.make('appsrc', 'rec_src')
-        self.rec_src.set_property('do-timestamp', True)
+        #self.rec_src.set_property('do-timestamp', True)
         self.rec_pipe.add(self.rec_src)
         
         mp4mux = Gst.ElementFactory.make('mp4mux', None)
@@ -117,6 +117,7 @@ class FaceDetect(object):
         
         self.rec_timer_id = 0
         self.rec_lock = threading.Lock()
+        self.is_playing = False
 
         self.window.show_all()
 
@@ -124,8 +125,6 @@ class FaceDetect(object):
         Gst.debug_bin_to_dot_file(self.rec_pipe, Gst.DebugGraphDetails.ALL, 'record_pipe_test')
                 
         self.pipe.set_state(Gst.State.PLAYING)
-        print("레코딩 시작")
-        self.start_recording()
         
         
     def on_new_sample_recsink(self, appsink):
@@ -134,14 +133,14 @@ class FaceDetect(object):
         caps = sample.get_caps()
         
         self.rec_lock.acquire()
-        print("레코딩 샘플 Lock 시작")
+        #print("레코딩 샘플 Lock 시작")
         nowstate = self.rec_pipe.get_state(Gst.CLOCK_TIME_NONE)[1] 
-        if nowstate == Gst.State.PLAYING:
+        if nowstate == Gst.State.PLAYING:# and self.is_playing:
             self.rec_src.set_caps(caps)
             self.rec_src.push_buffer(buffer)
          
         self.rec_lock.release()
-        print("레코딩 샘플 Lock 끝")
+        #print("레코딩 샘플 Lock 끝")
         
         return Gst.FlowReturn.OK
     
@@ -164,9 +163,10 @@ class FaceDetect(object):
             self.filesink.set_property('location', filepath)
             self.filesink.set_property('async', False)
             
-            self.rec_pipe.set_state(Gst.State.PLAYING)
-    
-            self.start_timer()
+            ret = self.rec_pipe.set_state(Gst.State.PLAYING)
+            if ret == Gst.StateChangeReturn.SUCCESS:
+                self.is_playing = True
+                self.start_timer()
             
         print("레코딩 Lock 끝")
 
@@ -184,6 +184,7 @@ class FaceDetect(object):
         self.rec_lock.acquire()
         print("레코딩 중지 Lock 시작")
         self.rec_src.end_of_stream()
+        #self.is_playing = False
         print("Recording stopped")
         self.rec_lock.release()
         print("레코딩 중지 Lock 끝")
@@ -209,6 +210,7 @@ class FaceDetect(object):
               
             GLib.Source.remove(self.rec_timer_id)
             self.rec_timer_id = 0
+            #self.is_playing = False
             self.rec_pipe.set_state(Gst.State.NULL)
             
         elif t == Gst.MessageType.WARNING:
@@ -229,7 +231,13 @@ class FaceDetect(object):
             
     def on_message_cb(self, bus, msg):
         t = msg.type
-        if t == Gst.MessageType.ERROR:
+        if t == Gst.MessageType.STATE_CHANGED:
+            now_state = msg.parse_state_changed()[1]
+            if now_state == Gst.State.PLAYING and not self.is_playing:
+                print("레코딩 시작")
+                self.start_recording()
+
+        elif t == Gst.MessageType.ERROR:
             name = msg.src.get_path_string()
             err, debug = msg.parse_error()
             print("Main pipeline -> Error : from element %s : %s ." % (name, err.message))
