@@ -1,8 +1,7 @@
 import os, threading
-#from datetime import datetime
+from datetime import datetime
 
 import gi
-from datetime import datetime
 gi.require_version('Gst', '1.0')
 
 from gi.repository import Gst, Gtk, GObject, Gdk, GLib
@@ -44,14 +43,14 @@ class Record(object):
         
         vid_q.link(vidsink)
         
-        temp_pad = tee.get_request_pad('src_%u')
+        vid_t_pad = tee.get_request_pad('src_%u')
         q_pad = vid_q.get_static_pad('sink')
-        temp_pad.link(q_pad)
+        vid_t_pad.link(q_pad)
         
         rec_q = Gst.ElementFactory.make('queue', None)
+        #rec_q.set_property('max-size-time', 30 * Gst.SECOND)
         self.pipe.add(rec_q)
         scale = Gst.ElementFactory.make('videoscale', None)
-        scale.set_property('method', 3)
         self.pipe.add(scale)
         caps = Gst.caps_from_string("video/x-raw, width=420, height=240")
         filter1 = Gst.ElementFactory.make('capsfilter', 'filter1')
@@ -65,8 +64,15 @@ class Record(object):
         self.pipe.add(filter2)
         vidconv2 = Gst.ElementFactory.make('videoconvert', 'vidconv2')
         self.pipe.add(vidconv2)
+        enc = Gst.ElementFactory.make('x264enc', 'enc')
+        enc.set_property('tune', 0x00000004)
+        self.pipe.add(enc)
+        filter3 = Gst.ElementFactory.make('capsfilter', 'filter3')
+        filter3.set_property('caps', Gst.caps_from_string('video/x-h264, profile=baseline'))
+        self.pipe.add(filter3)
         recsink = Gst.ElementFactory.make('appsink', 'recsink')
         recsink.set_property('emit-signals', True)
+        recsink.set_property('async', False)
         recsink.connect('new-sample', self.on_new_sample)
         self.pipe.add(recsink)
         
@@ -75,35 +81,38 @@ class Record(object):
         filter1.link(rate)
         rate.link(filter2)
         filter2.link(vidconv2)
-        vidconv2.link(recsink)
+        vidconv2.link(enc)
+        enc.link(filter3)
+        filter3.link(recsink)
         
-        temp_pad = tee.get_request_pad('src_%u')
-        q_pad = rec_q.get_static_pad('sink')
-        temp_pad.link(q_pad)
+        rec_t_pad = tee.get_request_pad('src_%u')
+        recq_pad = rec_q.get_static_pad('sink')
+        rec_t_pad.link(recq_pad)
         
         bus = self.pipe.get_bus()
         bus.add_signal_watch()
         bus.connect('message', self.on_message_cb, None)
         
         self.rec_pipe = Gst.ElementFactory.make('pipeline', 'rec_pipe')
-        recbus = self.rec_pipe.get_bus()
-        recbus.connect('message', self.on_rec_message_cb, None)
         
         self.appsrc = Gst.ElementFactory.make('appsrc', 'recsrc')
         self.rec_pipe.add(self.appsrc)
-        self.enc = Gst.ElementFactory.make('x264enc', 'enc')
-        self.rec_pipe.add(self.enc)
+        self.rec_parse = Gst.ElementFactory.make('h264parse', 'rec_parse')
+        self.rec_pipe.add(self.rec_parse)
         mp4mux = Gst.ElementFactory.make('mp4mux', 'mp4mux')
         self.rec_pipe.add(mp4mux)
         self.filesink = Gst.ElementFactory.make('filesink', 'filesink')
         self.rec_pipe.add(self.filesink)
         
-        self.appsrc.link(self.enc)
+        self.appsrc.link(self.rec_parse)
+        recp_pad = self.rec_parse.get_static_pad('src')
+        mp4_pad = mp4mux.get_request_pad('video_%u')
+        recp_pad.link(mp4_pad)
         mp4mux.link(self.filesink)
         
-        mux_pad = mp4mux.get_request_pad('video_%u')
-        enc_pad = self.enc.get_static_pad('src')
-        enc_pad.link(mux_pad)
+        recbus = self.rec_pipe.get_bus()
+        recbus.add_signal_watch()
+        recbus.connect('message', self.on_rec_message_cb, None)
         
         self.rec_thread_id = 0
         
@@ -114,10 +123,10 @@ class Record(object):
             GLib.Source.remove(self.rec_thread_id)
             self.rec_thread_id = 0
         else:
-            self.enc.set_property('tune', 'zerolatency')
             dtime = Gst.DateTime.new_now_local_time()
             g_datetime = dtime.to_g_date_time()
-            timestamp = g_datetime.format("%F_%H:%M:%S")
+            timestamp = g_datetime.format("%F_%H%M%S")
+            timestamp = timestamp.replace("-", "")
             filename = timestamp + ".mp4"
             print("Filename : %s" % filename)
             self.filesink.set_property('location', filename)
@@ -136,7 +145,8 @@ class Record(object):
     def start_timer(self):
         Gdk.threads_enter()
         print("Timer start : %s" % datetime.now())
-        self.rec_thread_id = Gdk.threads_add_timeout_seconds(GLib.PRIORITY_DEFAULT, 30, self.stop_recording)
+        self.rec_thread_id = GLib.timeout_add_seconds(30, self.stop_recording)
+        print(self.rec_thread_id)
         Gdk.threads_leave()
         print("Timer end")
         
@@ -144,6 +154,7 @@ class Record(object):
         Gdk.threads_enter()
         print("Record stop - start")
         self.appsrc.end_of_stream()
+        self.rec_thread_id = 0
         print(datetime.now())
         Gdk.threads_leave()
         print("Record stop - end")
@@ -155,12 +166,16 @@ class Record(object):
         
         Gdk.threads_enter()
         state = self.appsrc.get_state(Gst.CLOCK_TIME_NONE)[1]
-        print(state)
+        if recsink.is_eos():
+            print("Appsink eos received")
         if state == Gst.State.PLAYING:
             self.appsrc.set_caps(caps)
             self.appsrc.push_buffer(buffer)
-            
+            #print("Sample send - start")
         Gdk.threads_leave()
+        #print("Sample send - end")
+        
+        return Gst.FlowReturn.OK
     
     def on_rec_message_cb(self, bus, msg, data):
         t = msg.type
@@ -171,7 +186,7 @@ class Record(object):
             if debug is not None:
                 print("Additional debug info:\n%s" % debug)
               
-            GLib.Source.remove(self.rec_timer_id)
+            GLib.Source.remove(self.rec_thread_id)
             self.rec_thread_id = 0
             self.rec_pipe.set_state(Gst.State.NULL)
             
@@ -185,7 +200,8 @@ class Record(object):
         elif t == Gst.MessageType.EOS:
             print("End-Of-Stream received")
             print(datetime.now())
-            self.rec_thread_id = 0
+            print("")
+            #self.rec_thread_id = 0
             self.rec_pipe.set_state(Gst.State.NULL)
             self.start_recording()
     
@@ -212,6 +228,8 @@ class Record(object):
                 print("Additional debug info:\n%s" % debug)
             
         elif t == Gst.MessageType.EOS:
+            print("Main pipeline : End-Of-Stream received")
+            self.appsrc.end_of_stream()
             self.rec_thread_id = 0
             self.rec_pipe.set_state(Gst.State.NULL)
             self.pipe.set_state(Gst.State.NULL)
