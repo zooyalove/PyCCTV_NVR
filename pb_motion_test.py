@@ -20,13 +20,15 @@ class SnapshotPipeline(Pipeline):
         self.file_source = ""
         self.pb = Pushbullet('o.cJzinoZ3SdlW7JxYeDm7tbIrueQAW5aK')
         
+        self.create_snapshot()
+        
         bus = self.pipe.get_bus()
         bus.add_signal_watch()
         bus.connect('message', self.on_message_cb, None)
         
     def create_snapshot(self):
-        if self.pipe == None:
-            self.pipe = Gst.ElementFactory.make('pipeline', 'snap_pipe')
+        #if self.pipe == None:
+        #    self.pipe = Gst.ElementFactory.make('pipeline', 'snap_pipe')
             
         self.appsrc = Gst.ElementFactory.make('appsrc', 'snapsrc')
         self.pipe.add(self.appsrc)
@@ -49,12 +51,12 @@ class SnapshotPipeline(Pipeline):
         self.file_source = filename
         print("Filename : %s" % filename)
         
-        if self.pipe is not None:
+        """if self.pipe is not None:
             self.pipe.set_state(Gst.State.NULL)
             self.pipe.unref()
-            self.pipe = None
+            self.pipe = None"""
             
-        self.create_snapshot()
+        #self.create_snapshot()
         
         self.filesink.set_property('location', filename)
         self.filesink.set_property('async', False)
@@ -72,6 +74,7 @@ class SnapshotPipeline(Pipeline):
                 print("Additional debug info:\n%s" % debug)
               
             self.pipe.set_state(Gst.State.NULL)
+            self.file_source = ""
             
         elif t == Gst.MessageType.WARNING:
             name = msg.src.get_path_string()
@@ -81,20 +84,19 @@ class SnapshotPipeline(Pipeline):
                 print("Additional debug info:\n%s" % debug)
             
         elif t == Gst.MessageType.EOS:
-            Gdk.threads_enter()
             print("Snapshot End-Of-Stream received")
             print(datetime.now())
             print("")
             self.pipe.set_state(Gst.State.NULL)
-            self.pipe.unref()
-            self.pipe = None
+            #self.pipe.unref()
+            #self.pipe = None
             
-            with open(self.file_source, 'rb') as pic:
-                file_data = self.pb.upload_file(pic, self.file_source)
-            print(**file_data)
-            self.pb.push_file(**file_data)
-            Gdk.threads_leave()
-            
+            if self.file_source != "":
+                with open(self.file_source, 'rb') as pic:
+                    file_data = self.pb.upload_file(pic, self.file_source)
+                #print(**file_data)
+                self.pb.push_file(title="Motion detected", **file_data)
+                self.file_source = ""
         
             
 class FilePipeline(Pipeline):
@@ -326,7 +328,7 @@ class MotionBin(Bin):
         self.bin.add(vidconv2)
         
         motioncells = Gst.ElementFactory.make('motioncells', 'motioncells')
-        motioncells.set_property('sensitivity', 0.85)
+        motioncells.set_property('sensitivity', 0.5)
         self.bin.add(motioncells)
         
         motionsink = Gst.ElementFactory.make('appsink', 'motionsink')
@@ -352,13 +354,12 @@ class MotionBin(Bin):
         caps = sample.get_caps()
         
         Gdk.threads_enter()
-        if app.snapshot.pipe != None:
-            state = app.snapshot.pipe.get_state(Gst.CLOCK_TIME_NONE)[1]
-            if state == Gst.State.PLAYING:
-                appsrc = app.snapshot.appsrc
-                appsrc.set_caps(caps)
-                appsrc.push_buffer(buffer)
-                appsrc.end_of_stream()
+        appsrc = app.snapshot.appsrc
+        state = appsrc.get_state(Gst.CLOCK_TIME_NONE)[1]
+        if state == Gst.State.PLAYING:
+            appsrc.set_caps(caps)
+            appsrc.push_buffer(buffer)
+            appsrc.end_of_stream()
             
         Gdk.threads_leave()
         
@@ -440,7 +441,7 @@ class App(object):
                     indices = s.get_string('motion_cells_indices')
                     print("Motion detected in area(s) : %s" % indices)
                     self.snapshot.send_snapshot()
-                else:
+                elif s.has_field("motion_finished"):
                     print("Motion end")
     
     
