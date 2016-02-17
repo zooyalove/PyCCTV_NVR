@@ -14,8 +14,8 @@ from camerawidget import CameraWidget
 """
     - PurunNVR 클래스의 기능 -
         > 화면 보이기
-        > 파일 저장하기 
-        > 모션 감지시 사진 저장하고 PushBullet으로 사진 전송하기 
+        > 파일 저장하기 - 구현성공
+        > 모션 감지시 사진 저장하고 PushBullet으로 사진 전송하기 - 구현성공
         > 모션감지는 설정에 의해서 기능가능 여부를 판단한다 
 """
 class NvrWindow(Gtk.ApplicationWindow):
@@ -81,10 +81,11 @@ class PurunNVR(Gtk.Application):
         
     def do_startup(self):
         Gtk.Application.do_startup(self)
+
         
+if __name__ == "__main__":
+    GObject.threads_init()
+    Gst.init(None)
 
-GObject.threads_init()
-Gst.init(None)
-
-app = PurunNVR()
-sys.exit(app.run(sys.argv))
+    app = PurunNVR()
+    sys.exit(app.run(sys.argv))

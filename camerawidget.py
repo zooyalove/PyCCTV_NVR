@@ -17,6 +17,9 @@ class CameraWidget(Gtk.VBox):
     STOP_IMAGE = Gtk.STOCK_MEDIA_STOP
     RECORD_IMAGE = Gtk.STOCK_MEDIA_RECORD
     
+    """
+        @param save_timeout: Time for video saved
+    """
     def __init__(self, name, source={'ip':'127.0.0.1', 'port':5000}, size=(640, 360), save_timeout=60):
         Gtk.VBox.__init__(self)
         
