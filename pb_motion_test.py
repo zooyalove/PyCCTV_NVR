@@ -27,9 +27,6 @@ class SnapshotPipeline(Pipeline):
         bus.connect('message', self.on_message_cb, None)
         
     def create_snapshot(self):
-        #if self.pipe == None:
-        #    self.pipe = Gst.ElementFactory.make('pipeline', 'snap_pipe')
-            
         self.appsrc = Gst.ElementFactory.make('appsrc', 'snapsrc')
         self.pipe.add(self.appsrc)
         
@@ -50,13 +47,6 @@ class SnapshotPipeline(Pipeline):
         filename = "sshot_" + timestamp + ".jpg"
         self.file_source = filename
         print("Filename : %s" % filename)
-        
-        """if self.pipe is not None:
-            self.pipe.set_state(Gst.State.NULL)
-            self.pipe.unref()
-            self.pipe = None"""
-            
-        #self.create_snapshot()
         
         self.filesink.set_property('location', filename)
         self.filesink.set_property('async', False)
@@ -88,14 +78,14 @@ class SnapshotPipeline(Pipeline):
             print(datetime.now())
             print("")
             self.pipe.set_state(Gst.State.NULL)
-            #self.pipe.unref()
-            #self.pipe = None
             
             if self.file_source != "":
                 with open(self.file_source, 'rb') as pic:
                     file_data = self.pb.upload_file(pic, self.file_source)
-                #print(**file_data)
-                self.pb.push_file(title="Motion detected", **file_data)
+                for key in file_data.keys():
+                    print("%s in File data of value : %s" % (key , file_data[key]))
+                push = self.pb.push_file(title="Motion detected", **file_data)
+                print(push)
                 self.file_source = ""
         
             
@@ -449,7 +439,6 @@ class App(object):
         Gtk.main_quit()
         
     def run(self):
-        #self.win.show_all()
         self.pipe.set_state(Gst.State.PLAYING)
         self.filerec.start_recording()
         Gtk.main()
