@@ -5,7 +5,7 @@ gi.require_version('Gtk', '3.0')
 
 from gi.repository import Gtk, Gdk, Gst
 from pushbullet import Pushbullet
-from videowidget import VideoWidget
+from src.videowidget import VideoWidget
 
 class CameraWidget(Gtk.VBox):
     IS_LINUX = (platform.system().lower() == "linux")
