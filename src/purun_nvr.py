@@ -50,6 +50,26 @@ class NvrWindow(Gtk.ApplicationWindow):
         toolbar = Gtk.Toolbar()
         toolbar.set_style(Gtk.ToolbarStyle.ICONS)
         
+        zoomin = Gtk.ToolButton(Gtk.STOCK_ZOOM_IN)
+        toolbar.insert(zoomin)
+        
+        zoom100 = Gtk.ToolButton(Gtk.STOCK_ZOOM_100)
+        toolbar.insert(zoom100)
+        
+        zoomout = Gtk.ToolButton(Gtk.STOCK_ZOOM_OUT)
+        toolbar.insert(zoomout)
+        
+        sep = Gtk.SeparatorToolItem()
+        toolbar.insert(sep)
+        
+        toolItem = Gtk.ToolItem()
+        grid = Gtk.Grid()
+        toolItem.add(grid)
+        toolbar.insert(toolItem)
+        
+        sep = Gtk.SeparatorToolItem()
+        toolbar.insert(sep)
+        
         toolItem = Gtk.ToolItem()
         lvlHDD = Gtk.LevelBar()
         lvlHDD.set_min_value(0.0)
@@ -114,9 +134,9 @@ class PurunNVR(Gtk.Application):
     def do_startup(self):
         Gtk.Application.do_startup(self)
         
+if __name__ == "__main__":
+    GObject.threads_init()
+    Gst.init(None)
 
-GObject.threads_init()
-Gst.init(None)
-
-app = PurunNVR()
-sys.exit(app.run(sys.argv))
+    app = PurunNVR()
+    sys.exit(app.run(sys.argv))
