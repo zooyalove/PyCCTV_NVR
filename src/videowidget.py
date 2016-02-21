@@ -1,15 +1,8 @@
-import platform
 import gi
 gi.require_version('Gst', '1.0')
 
 from gi.repository import Gst, Gtk, Gdk, GstVideo
-
-if platform.system().lower() == "linux":
-    from gi.repository import GdkX11
-else:
-    from gi.repository import GdkWin32
-
-print(platform.system())
+from gi.repository import GdkX11
 
 class VideoWidget(Gtk.DrawingArea):
     
@@ -34,6 +27,5 @@ class VideoWidget(Gtk.DrawingArea):
         self._xid = self.get_property('window').get_xid()
         self._sink = sink
         self._sink.set_property('force-aspect-ratio', True)
-        #self._sink.handle_events(False)
         self._sink.set_window_handle(self._xid)
         

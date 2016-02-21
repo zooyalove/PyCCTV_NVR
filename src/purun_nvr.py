@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-import sys
+import sys, os
 
 import gi
 gi.require_version('Gst', '1.0')
@@ -50,11 +50,22 @@ class NvrWindow(Gtk.ApplicationWindow):
         toolbar = Gtk.Toolbar()
         toolbar.set_style(Gtk.ToolbarStyle.ICONS)
         
-        lvlHDD = Gtk.ToolItem()
-        sep = Gtk.SeparatorToolItem()
-        quitBtn = Gtk.ToolButton(Gtk.STOCK_QUIT)
+        toolItem = Gtk.ToolItem()
+        lvlHDD = Gtk.LevelBar()
+        lvlHDD.set_min_value(0.0)
+        lvlHDD.set_max_value(100.0)
+        lvlHDD.set_value(50.0)
+        toolItem.add(lvlHDD)
+        toolItem.set_hexpand(True)
+        toolbar.insert(toolItem)
         
-        hbox.pack_start(toolbar, False, False, 0)
+        sep = Gtk.SeparatorToolItem()
+        toolbar.insert(sep)
+        
+        quitBtn = Gtk.ToolButton(Gtk.STOCK_QUIT)
+        toolbar.insert(quitBtn)
+        
+        hbox.pack_start(toolbar, True, False, 0)
         
     def add_camera(self, box, camera):
         # 카메라화면 추가
