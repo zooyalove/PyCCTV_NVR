@@ -8,7 +8,6 @@ gi.require_version('Gst', '1.0')
 from gi.repository import Gst, GObject, Gtk, Gdk
 from gi.repository import GdkX11, GstVideo
 
-#from videoplayer import VideoPlayer
 from src.camerawidget import CameraWidget
 
 """
@@ -45,7 +44,7 @@ class NvrWindow(Gtk.ApplicationWindow):
         self.add_camera(vbox, cam1)
         
         hbox = Gtk.HBox()
-        vbox.pack_end(hbox, True, False, 5)
+        vbox.pack_end(hbox, False, True, 5)
         
         toolbar = Gtk.Toolbar()
         toolbar.set_style(Gtk.ToolbarStyle.ICONS)
@@ -73,10 +72,11 @@ class NvrWindow(Gtk.ApplicationWindow):
         toolItem = Gtk.ToolItem()
         lvlHDD = Gtk.LevelBar()
         lvlHDD.set_min_value(0.0)
-        lvlHDD.set_max_value(100.0)
-        lvlHDD.set_value(50.0)
+        lvlHDD.set_max_value(1.0)
+        lvlHDD.set_value(0.5)
+        lvlHDD.set_hexpand(True)
         toolItem.add(lvlHDD)
-        toolItem.set_hexpand(True)
+        toolItem.set_expand(True)
         toolbar.insert(toolItem)
         
         sep = Gtk.SeparatorToolItem()
@@ -85,7 +85,7 @@ class NvrWindow(Gtk.ApplicationWindow):
         quitBtn = Gtk.ToolButton(Gtk.STOCK_QUIT)
         toolbar.insert(quitBtn)
         
-        hbox.pack_start(toolbar, True, False, 0)
+        hbox.pack_start(toolbar, True, True, 0)
         
     def add_camera(self, box, camera):
         # 카메라화면 추가
