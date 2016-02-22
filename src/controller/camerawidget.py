@@ -3,7 +3,7 @@ import gi
 import sys
 gi.require_version('Gtk', '3.0')
 
-from gi.repository import Gtk, Gdk, Gst
+from gi.repository import Gtk, Gdk, Gst, Pango
 from pushbullet import Pushbullet
 from src.controller.videowidget import VideoWidget
 
@@ -18,7 +18,7 @@ class CameraWidget(Gtk.VBox):
     RECORD_IMAGE = Gtk.STOCK_MEDIA_RECORD
     
     def __init__(self, name, source={'ip':'127.0.0.1', 'port':5000}, size=(640, 360), save_timeout=60):
-        Gtk.VBox.__init__(self)
+        super(CameraWidget, self).__init__()
         
         self.is_playing = False
         
@@ -27,14 +27,18 @@ class CameraWidget(Gtk.VBox):
         self.set_size(size)
         self.set_save_timeout(save_timeout)
         self._setupUI()
-        self.__createCameraBin()
+        if source is not None:
+            self.__createCameraBin()
         
     def get_camera_name(self):
         return self.__name
 
     def get_bin(self):
         return self.__camera_bin
-            
+        
+    def get_source(self):
+        return self.__source
+        
     def __set_source(self, source):
         self.__source = source
         
@@ -48,11 +52,9 @@ class CameraWidget(Gtk.VBox):
         return self.__save_timeout
         
     def _setupUI(self):
-        vbox = Gtk.VBox()
-        self.add(vbox)
         
         self._overlay = Gtk.Overlay()
-        vbox.pack_start(self._overlay, True, True, 0)
+        self.pack_start(self._overlay, True, True, 0)
         
         # Video screen renderer object initialize
         self.video_widget = VideoWidget(self)
@@ -60,21 +62,27 @@ class CameraWidget(Gtk.VBox):
         
         self._overlay.add(self.video_widget)
 
-        self._logo_box = Gtk.EventBox()
-        self._logo_box.set_halign(Gtk.Align.CENTER)
-        self._logo_box.set_valign(Gtk.Align.CENTER)
+        if self.__source is None:
+            tim = Gtk.Image()
+            tim.set_from_stock(Gtk.STOCK_DIALOG_QUESTION, Gtk.IconSize.DIALOG)
+            tim.set_halign(Gtk.Align.CENTER)
+            tim.set_valign(Gtk.Align.CENTER)
+            self._overlay.add_overlay(tim)
         
-        tim = Gtk.Image()
-        tim.set_from_stock(Gtk.STOCK_DIALOG_QUESTION, Gtk.IconSize.DIALOG)
+        attr = Pango.AttrList()
+        fgColor = Pango.AttrColor()
+        cam_name = Gtk.Label()
+        cam_name.set_markup('<b style="color:white">'+self.get_camera_name()+'</b>')
+        cam_name.set_halign(Gtk.Align.CENTER)
+        cam_name.set_valign(Gtk.Align.CENTER)
+        print(cam_name.get_text())
         
-        self._logo_box.connect('button-press-event', self._on_video_loading)
-        self._logo_box.add(tim)
-        self._overlay.add_overlay(self._logo_box)
+        self._overlay.add_overlay(cam_name)
         
         #bottom part config
         #device connect info, record info
         hbox = Gtk.HBox()
-        vbox.pack_end(hbox, False, True, 2)
+        self.pack_end(hbox, False, True, 2)
         
         self._spinner = Gtk.Spinner()
         hbox.pack_start(self._spinner, False, False, 0)
@@ -124,7 +132,7 @@ class CameraWidget(Gtk.VBox):
         
     def __createSourceBin(self):
         c_name = self.__name.lower() 
-        source_bin = Gst.Bin.new(c_name + "_src_bin")
+        source_bin = Gst.ElementFactory.make('bin', c_name + "_src_bin")
         
         cam_src = Gst.ElementFactory.make('tcpclientsrc', c_name + "_src")
         cam_src.set_property('host', self.__source["ip"])

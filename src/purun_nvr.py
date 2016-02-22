@@ -8,6 +8,7 @@ gi.require_version('Gst', '1.0')
 from gi.repository import Gst, GObject, Gtk, Gdk
 from gi.repository import GdkX11, GstVideo
 
+from src.controller.nvrmanager import NvrManager
 from src.controller.camerawidget import CameraWidget 
 
 """
@@ -19,29 +20,30 @@ from src.controller.camerawidget import CameraWidget
         > 모션 감지시 사진 저장하고 PushBullet으로 사진 전송하기 
         > 모션감지는 설정에 의해서 기능가능 여부를 판단한다 
 """
-class NvrWindow(Gtk.ApplicationWindow):
+class PurunNVR(object):
     
     MAX_CAMERA_NUM = 4
     
-    def __init__(self, app):
-        Gtk.Window.__init__(self, title="PyCCTV NVR", application=app)
-        self.app = app
-        
-        self.cameras = dict()
-        self.player = Gst.Pipeline.new('CCTV_NVR')
-        self.player_configure()
+    def __init__(self):
         self.setupUI()
 
     def setupUI(self):
-        self.set_position(Gtk.WindowPosition.CENTER)
-        self.set_size_request(660, 500)
-        self.connect('destroy', self.on_window_quit)
+        self.win = Gtk.Window(title="PyCCTV NVR")
+        self.win.set_position(Gtk.WindowPosition.CENTER)
+        self.win.set_size_request(660, 500)
+        self.win.set_border_width(5)
+        self.win.connect('destroy', self.quit)
         
         vbox = Gtk.VBox()
-        self.add(vbox)
         
-        cam1 = CameraWidget("CAM1", source={'ip':'songsul.iptime.org', 'port':5001})
-        self.add_camera(vbox, cam1)
+        self.manager = NvrManager(self)
+        vbox.add(self.manager)
+        self.win.add(vbox)
+        
+        #cam1 = CameraWidget("CAM1", source={'ip':'songsul.iptime.org', 'port':5001})
+        #self.manager.add_camera(cam1)
+        cam1 = CameraWidget("CAM1", source=None)
+        self.manager.add_camera(cam1)
         
         hbox = Gtk.HBox()
         vbox.pack_end(hbox, False, False, 10)
@@ -52,42 +54,50 @@ class NvrWindow(Gtk.ApplicationWindow):
         image.set_from_stock(Gtk.STOCK_ZOOM_IN, Gtk.IconSize.DIALOG)
         zoomin = Gtk.Button()
         zoomin.set_image(image)
-        zoomin.set_can_focus(False)
         zoomin.set_margin_left(10)
+        zoomin.set_tooltip_text('화면 확대')
         hbox.pack_start(zoomin, False, False, 3)
         
         image = Gtk.Image()
         image.set_from_stock(Gtk.STOCK_ZOOM_100, Gtk.IconSize.DIALOG)
         zoom100 = Gtk.Button()
         zoom100.set_image(image)
-        zoom100.set_can_focus(False)
+        zoom100.set_tooltip_text('원본 화면')
         hbox.pack_start(zoom100, False, False, 3)
         
         image = Gtk.Image()
         image.set_from_stock(Gtk.STOCK_ZOOM_OUT, Gtk.IconSize.DIALOG)
         zoomout = Gtk.Button()
         zoomout.set_image(image)
-        zoomout.set_can_focus(False)
+        zoomout.set_tooltip_text('화면 축소')
         hbox.pack_start(zoomout, False, False, 3)
         
         grid = Gtk.Grid()
+        grid.set_column_spacing(2)
+        grid.set_row_spacing(2)
+        
         arwLeft = Gtk.Button()
         arwLeft.add(Gtk.Arrow(Gtk.ArrowType.LEFT, Gtk.ShadowType.NONE))
+        arwLeft.set_tooltip_text('왼쪽으로 화면 이동')
         
         arwTop = Gtk.Button()
         arwTop.add(Gtk.Arrow(Gtk.ArrowType.UP, Gtk.ShadowType.NONE))
+        arwTop.set_tooltip_text('상단으로 화면 이동')
 
         arwRight = Gtk.Button()
         arwRight.add(Gtk.Arrow(Gtk.ArrowType.RIGHT, Gtk.ShadowType.NONE))
+        arwRight.set_tooltip_text('오른쪽으로 화면 이동')
 
         arwBottom = Gtk.Button()
         arwBottom.add(Gtk.Arrow(Gtk.ArrowType.DOWN, Gtk.ShadowType.NONE))
+        arwBottom.set_tooltip_text('하단으로 화면 이동')
         
         image = Gtk.Image()
         image.set_from_stock(Gtk.STOCK_ZOOM_FIT, Gtk.IconSize.BUTTON)
         
         arwCenter = Gtk.Button()
         arwCenter.set_image(image)
+        arwCenter.set_tooltip_text('원점으로 화면 재배치')
         
         grid.attach(arwTop, 1, 0, 1, 1)
         grid.attach(arwLeft, 0, 1, 1, 1)
@@ -98,9 +108,6 @@ class NvrWindow(Gtk.ApplicationWindow):
         hbox.pack_start(grid, False, False, 2)
         hbox.pack_start(Gtk.Label(), True, True, 0)
         
-        image = Gtk.Image()
-        image.set_from_stock(Gtk.STOCK_QUIT, Gtk.IconSize.DIALOG)
-        
         boxHdd = Gtk.VBox()
         boxHdd.pack_start(Gtk.Label(), True, True, 0)
         
@@ -109,6 +116,7 @@ class NvrWindow(Gtk.ApplicationWindow):
         self.lvlHDD.set_max_value(1.0)
         self.lvlHDD.set_value(0.5)
         self.lvlHDD.set_size_request(300, -1)
+        self.lvlHDD.set_margin_left(10)
         self.lvlHDD.set_margin_right(10)
         boxHdd.pack_start(self.lvlHDD, True, False, 5)
         
@@ -119,64 +127,32 @@ class NvrWindow(Gtk.ApplicationWindow):
         
         hbox.pack_start(boxHdd, True, True, 0)
         
+        image = Gtk.Image()
+        image.set_from_stock(Gtk.STOCK_QUIT, Gtk.IconSize.DIALOG)
+        
         quitBtn = Gtk.Button()
         quitBtn.set_image(image)
         quitBtn.set_margin_right(10)
+        quitBtn.set_tooltip_text('프로그램 끝내기')
+        quitBtn.connect('clicked', self.quit)
         hbox.pack_start(quitBtn, False, False, 0)
         
         hbox.pack_start(Gtk.Label(), True, True, 0)
         
-    def add_camera(self, box, camera):
-        # 카메라화면 추가
-        box.add(camera)
-        
-        camera_name = camera.get_camera_name().lower()
-        print("Camera name : %s" % camera_name)
-        self.cameras[camera_name] = camera
-    
-        self.player.add(camera.get_bin())
-        
-    def player_configure(self):    
-        bus = self.player.get_bus()
-        bus.add_signal_watch()
-        bus.enable_sync_message_emission()
-        
-        def sync_msg_handler(bus, msg):
-            if msg.get_structure().get_name() == "prepare-window-handle":
-                sink = msg.src
-                sink_name = sink.get_name()[:sink.get_name().find('_')]
-                print("Sink name : %s" % sink_name)
-                self.cameras[sink_name].video_widget.set_sink(sink)
-                
-        bus.connect('sync-message::element', sync_msg_handler)
-        
 
     def start(self):
-        self.show_all()
-        self.player.set_state(Gst.State.PLAYING)
+        self.win.show_all()
+        self.manager.start()
+        Gtk.main()
                 
-    def on_window_quit(self, window):
-        self.player.set_state(Gst.State.NULL)
-        self.app.quit()
+    def quit(self, window):
+        self.manager.stop()
+        Gtk.main_quit()
         
-    def on_message(self, bus, msg):
-        pass
-       
                 
-class PurunNVR(Gtk.Application):
-    def __init__(self):
-        Gtk.Application.__init__(self)
-        
-    def do_activate(self):
-        self.window = NvrWindow(self)
-        self.window.start()
-        
-    def do_startup(self):
-        Gtk.Application.do_startup(self)
-        
 if __name__ == "__main__":
     GObject.threads_init()
     Gst.init(None)
 
     app = PurunNVR()
-    sys.exit(app.run(sys.argv))
+    app.start()

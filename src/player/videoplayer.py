@@ -6,7 +6,7 @@ from gi.repository import GdkX11, GstVideo
 
 class VideoPlayer(Gtk.Window):
     def __init__(self, parent):
-        Gtk.Window.__init__(self)
+        super(VideoPlayer, self).__init__()
         
         self.par = parent
         self.set_size_request(640, 480)
