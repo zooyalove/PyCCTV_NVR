@@ -47,7 +47,7 @@ class NvrManager(Gtk.VBox):
             if debug is not None:
                 print("Additional debug info:\n%s" % debug)
             
-            self.app.quit()
+            self.app.quit(None)
             
         elif t == Gst.MessageType.WARNING:
             name = msg.src.get_path_string()
@@ -59,7 +59,7 @@ class NvrManager(Gtk.VBox):
         elif t == Gst.MessageType.EOS:
             print("Main pipeline : End-Of-Stream received")
             
-            self.app.quit()
+            self.app.quit(None)
             
        
     def start(self):

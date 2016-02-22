@@ -140,6 +140,12 @@ class PurunNVR(object):
         hbox.pack_start(Gtk.Label(), True, True, 0)
         
 
+    def on_zoomin(self, widget):
+        pass
+    
+    def on_zoomout(self, widget):
+        pass
+    
     def start(self):
         self.win.show_all()
         self.manager.start()
