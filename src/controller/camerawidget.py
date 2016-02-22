@@ -90,6 +90,7 @@ class CameraWidget(Gtk.VBox):
         #recording image setting
         self._rec_image = Gtk.Image()
         self._rec_image.set_from_stock(self.STOP_IMAGE, Gtk.IconSize.LARGE_TOOLBAR)
+        self._rec_image.set_margin_right(5)
         hbox.pack_start(self._rec_image, False, False, 0)
         
         self._rec_text = Gtk.Label(self.NOT_RECORD)
@@ -136,12 +137,16 @@ class CameraWidget(Gtk.VBox):
         rtpdepay = Gst.ElementFactory.make('rtph264depay', None)
         source_bin.add(rtpdepay)
         
+        h264parse = Gst.ElementFactory.make('h264parse', None)
+        source_bin.add(h264parse)
+        
         avdec = Gst.ElementFactory.make('avdec_h264', None)
         source_bin.add(avdec)
         
         cam_src.link(gdpdepay)
         gdpdepay.link(rtpdepay)
-        rtpdepay.link(avdec)
+        rtpdepay.link(h264parse)
+        h264parse.link(avdec)
         
         dec_pad = avdec.get_static_pad('src')
         gh_pad = Gst.GhostPad.new('src', dec_pad)
@@ -174,8 +179,8 @@ class CameraWidget(Gtk.VBox):
         capsfilter.set_property('caps', caps)
         sink_bin.add(capsfilter)
         
-        #conv2 = Gst.ElementFactory.make('videoconvert', None)
-        #sink_bin.add(conv2)
+        conv2 = Gst.ElementFactory.make('videoconvert', None)
+        sink_bin.add(conv2)
         
         if self.IS_LINUX:
             self._vid_sink = Gst.ElementFactory.make('xvimagesink', c_name + "_videosink")
@@ -188,9 +193,8 @@ class CameraWidget(Gtk.VBox):
         conv1.link(crop)
         crop.link(scale)
         scale.link(capsfilter)
-        capsfilter.link(self._vid_sink)
-        #capsfilter.link(conv2)
-        #conv2.link(self._vid_sink)
+        capsfilter.link(conv2)
+        conv2.link(self._vid_sink)
         
         q_pad = queue.get_static_pad('sink')
         gh_pad = Gst.GhostPad.new('sink', q_pad)

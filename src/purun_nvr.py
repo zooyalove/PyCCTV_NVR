@@ -40,52 +40,91 @@ class NvrWindow(Gtk.ApplicationWindow):
         vbox = Gtk.VBox()
         self.add(vbox)
         
-        cam1 = CameraWidget("CAM1", source={'ip':'songsul.iptime.org', 'port':5000})
+        cam1 = CameraWidget("CAM1", source={'ip':'songsul.iptime.org', 'port':5001})
         self.add_camera(vbox, cam1)
         
         hbox = Gtk.HBox()
-        vbox.pack_end(hbox, False, True, 5)
+        vbox.pack_end(hbox, False, False, 10)
         
-        toolbar = Gtk.Toolbar()
-        toolbar.set_style(Gtk.ToolbarStyle.ICONS)
+        hbox.pack_start(Gtk.Label(), True, True, 0)
         
-        zoomin = Gtk.ToolButton(Gtk.STOCK_ZOOM_IN)
-        toolbar.insert(zoomin)
+        image = Gtk.Image()
+        image.set_from_stock(Gtk.STOCK_ZOOM_IN, Gtk.IconSize.DIALOG)
+        zoomin = Gtk.Button()
+        zoomin.set_image(image)
+        zoomin.set_can_focus(False)
+        zoomin.set_margin_left(10)
+        hbox.pack_start(zoomin, False, False, 3)
         
-        zoom100 = Gtk.ToolButton(Gtk.STOCK_ZOOM_100)
-        toolbar.insert(zoom100)
+        image = Gtk.Image()
+        image.set_from_stock(Gtk.STOCK_ZOOM_100, Gtk.IconSize.DIALOG)
+        zoom100 = Gtk.Button()
+        zoom100.set_image(image)
+        zoom100.set_can_focus(False)
+        hbox.pack_start(zoom100, False, False, 3)
         
-        zoomout = Gtk.ToolButton(Gtk.STOCK_ZOOM_OUT)
-        toolbar.insert(zoomout)
+        image = Gtk.Image()
+        image.set_from_stock(Gtk.STOCK_ZOOM_OUT, Gtk.IconSize.DIALOG)
+        zoomout = Gtk.Button()
+        zoomout.set_image(image)
+        zoomout.set_can_focus(False)
+        hbox.pack_start(zoomout, False, False, 3)
         
-        sep = Gtk.SeparatorToolItem()
-        toolbar.insert(sep)
-        
-        toolItem = Gtk.ToolItem()
         grid = Gtk.Grid()
-        toolItem.add(grid)
-        toolbar.insert(toolItem)
+        arwLeft = Gtk.Button()
+        arwLeft.add(Gtk.Arrow(Gtk.ArrowType.LEFT, Gtk.ShadowType.NONE))
         
-        sep = Gtk.SeparatorToolItem()
-        toolbar.insert(sep)
+        arwTop = Gtk.Button()
+        arwTop.add(Gtk.Arrow(Gtk.ArrowType.UP, Gtk.ShadowType.NONE))
+
+        arwRight = Gtk.Button()
+        arwRight.add(Gtk.Arrow(Gtk.ArrowType.RIGHT, Gtk.ShadowType.NONE))
+
+        arwBottom = Gtk.Button()
+        arwBottom.add(Gtk.Arrow(Gtk.ArrowType.DOWN, Gtk.ShadowType.NONE))
         
-        toolItem = Gtk.ToolItem()
-        lvlHDD = Gtk.LevelBar()
-        lvlHDD.set_min_value(0.0)
-        lvlHDD.set_max_value(1.0)
-        lvlHDD.set_value(0.5)
-        lvlHDD.set_hexpand(True)
-        toolItem.add(lvlHDD)
-        toolItem.set_expand(True)
-        toolbar.insert(toolItem)
+        image = Gtk.Image()
+        image.set_from_stock(Gtk.STOCK_ZOOM_FIT, Gtk.IconSize.BUTTON)
         
-        sep = Gtk.SeparatorToolItem()
-        toolbar.insert(sep)
+        arwCenter = Gtk.Button()
+        arwCenter.set_image(image)
         
-        quitBtn = Gtk.ToolButton(Gtk.STOCK_QUIT)
-        toolbar.insert(quitBtn)
+        grid.attach(arwTop, 1, 0, 1, 1)
+        grid.attach(arwLeft, 0, 1, 1, 1)
+        grid.attach(arwCenter, 1, 1, 1, 1)
+        grid.attach(arwRight, 2, 1, 1, 1)
+        grid.attach(arwBottom, 1, 2, 1, 1)
         
-        hbox.pack_start(toolbar, True, True, 0)
+        hbox.pack_start(grid, False, False, 2)
+        hbox.pack_start(Gtk.Label(), True, True, 0)
+        
+        image = Gtk.Image()
+        image.set_from_stock(Gtk.STOCK_QUIT, Gtk.IconSize.DIALOG)
+        
+        boxHdd = Gtk.VBox()
+        boxHdd.pack_start(Gtk.Label(), True, True, 0)
+        
+        self.lvlHDD = Gtk.LevelBar()
+        self.lvlHDD.set_min_value(0.0)
+        self.lvlHDD.set_max_value(1.0)
+        self.lvlHDD.set_value(0.5)
+        self.lvlHDD.set_size_request(300, -1)
+        self.lvlHDD.set_margin_right(10)
+        boxHdd.pack_start(self.lvlHDD, True, False, 5)
+        
+        self.lblHdd_Percent = Gtk.Label()
+        self.lblHdd_Percent.set_text("Usage / Total - 50%")
+        boxHdd.pack_start(self.lblHdd_Percent, True, True, 0)
+        boxHdd.pack_end(Gtk.Label(), True, True, 0)
+        
+        hbox.pack_start(boxHdd, True, True, 0)
+        
+        quitBtn = Gtk.Button()
+        quitBtn.set_image(image)
+        quitBtn.set_margin_right(10)
+        hbox.pack_start(quitBtn, False, False, 0)
+        
+        hbox.pack_start(Gtk.Label(), True, True, 0)
         
     def add_camera(self, box, camera):
         # 카메라화면 추가
@@ -130,6 +169,7 @@ class PurunNVR(Gtk.Application):
         
     def do_activate(self):
         self.window = NvrWindow(self)
+        self.window.start()
         
     def do_startup(self):
         Gtk.Application.do_startup(self)
