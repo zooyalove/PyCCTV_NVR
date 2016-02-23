@@ -1,8 +1,8 @@
 import gi
 gi.require_version('Gst', '1.0')
 
-from gi.repository import Gst, Gtk, Gdk, GstVideo
-from gi.repository import GdkX11
+from gi.repository import Gst, Gtk, Gdk
+from gi.repository import GdkX11, GstVideo
 
 class VideoWidget(Gtk.DrawingArea):
     

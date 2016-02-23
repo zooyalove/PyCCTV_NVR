@@ -1,6 +1,5 @@
-import platform
+import sys, os
 import gi
-import sys
 gi.require_version('Gtk', '3.0')
 
 from gi.repository import Gtk, Gdk, Gst, Pango
@@ -8,24 +7,23 @@ from pushbullet import Pushbullet
 from src.controller.videowidget import VideoWidget
 
 class CameraWidget(Gtk.VBox):
-    IS_LINUX = (platform.system().lower() == "linux")
-    NOT_RECORD = "Don't Recoding."
+    IS_LINUX = sys.platform.startswith("linux")
+    NOT_RECORD = "Don't Recording."
     RECORDING = "Now Recording..."
-    DEVICE_CONNECTING = "Camera connecting..."
-    DEVICE_CONNECT_ERROR = "Error camera connect"
     
     STOP_IMAGE = Gtk.STOCK_MEDIA_STOP
     RECORD_IMAGE = Gtk.STOCK_MEDIA_RECORD
     
-    def __init__(self, name, source={'ip':'127.0.0.1', 'port':5000}, size=(640, 360), save_timeout=60):
+    def __init__(self, app, name, source={'ip':'127.0.0.1', 'port':5000}, size=(640, 360), save_timeout=60):
         super(CameraWidget, self).__init__()
         
+        self.app = app
         self.is_playing = False
         
-        self.__set_source(source)
+        self.set_source(source)
         self.__set_camera_name(name)
         self.set_size(size)
-        self.set_save_timeout(save_timeout)
+        self.set_save_timeout(save_timeout) # save_timeout => minute
         self._setupUI()
         if source is not None:
             self.__createCameraBin()
@@ -42,11 +40,11 @@ class CameraWidget(Gtk.VBox):
         self._overlay.add(self.video_widget)
 
         if self.__source is None:
-            tim = Gtk.Image()
-            tim.set_from_stock(Gtk.STOCK_DIALOG_QUESTION, Gtk.IconSize.DIALOG)
-            tim.set_halign(Gtk.Align.CENTER)
-            tim.set_valign(Gtk.Align.CENTER)
-            self._overlay.add_overlay(tim)
+            self.logo = Gtk.Image()
+            self.logo.set_from_file(os.path.join(self.app.RESOURCE_PATH, 'purun_nvr.png'))
+            self.logo.set_halign(Gtk.Align.CENTER)
+            self.logo.set_valign(Gtk.Align.CENTER)
+            self._overlay.add_overlay(self.logo)
         
         #bottom part config
         #Device name setting
@@ -211,7 +209,7 @@ class CameraWidget(Gtk.VBox):
     def get_source(self):
         return self.__source
         
-    def __set_source(self, source):
+    def set_source(self, source):
         self.__source = source
         
     def set_save_timeout(self, timeout):

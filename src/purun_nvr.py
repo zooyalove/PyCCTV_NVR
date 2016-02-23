@@ -1,15 +1,19 @@
 #!/usr/bin/python3
 
-import sys, os
+import os
 
 import gi
 gi.require_version('Gst', '1.0')
 
-from gi.repository import Gst, GObject, Gtk, Gdk
-from gi.repository import GdkX11, GstVideo
+from gi.repository import Gst, GObject, Gtk
+#from gi.repository import GdkX11, GstVideo
+
+from pushbullet import Pushbullet
 
 from src.controller.nvrmanager import NvrManager
 from src.controller.camerawidget import CameraWidget 
+
+PB_API_KEY = 'o.cJzinoZ3SdlW7JxYeDm7tbIrueQAW5aK'
 
 """
     - PurunNVR 클래스의 기능 -
@@ -23,10 +27,21 @@ from src.controller.camerawidget import CameraWidget
 class PurunNVR(object):
     
     MAX_CAMERA_NUM = 4
+    APP_PATH = os.path.abspath(os.path.dirname(__file__))
+    RESOURCE_PATH = os.path.join(APP_PATH, 'resources')
+    VIDEO_PATH = os.path.join(APP_PATH, 'videos')
+    SNAPSHOT_PATH = os.path.join(APP_PATH, 'snapshot')
+    SNAPSHOT_PREFIX = 'sshot_'    
     
     def __init__(self):
+        self.pb = Pushbullet(PB_API_KEY) 
         self.setupUI()
 
+        #cam1 = CameraWidget("CAM1", source={'ip':'songsul.iptime.org', 'port':5001})
+        #self.manager.add_camera(cam1)
+        cam1 = CameraWidget(self, "CAM1", source=None)
+        self.manager.add_camera(cam1)
+        
     def setupUI(self):
         self.win = Gtk.Window(title="PyCCTV NVR")
         self.win.set_position(Gtk.WindowPosition.CENTER)
@@ -39,11 +54,6 @@ class PurunNVR(object):
         self.manager = NvrManager(self)
         vbox.add(self.manager)
         self.win.add(vbox)
-        
-        #cam1 = CameraWidget("CAM1", source={'ip':'songsul.iptime.org', 'port':5001})
-        #self.manager.add_camera(cam1)
-        cam1 = CameraWidget("CAM1", source=None)
-        self.manager.add_camera(cam1)
         
         hbox = Gtk.HBox()
         vbox.pack_end(hbox, False, False, 10)
@@ -63,6 +73,7 @@ class PurunNVR(object):
         zoom100 = Gtk.Button()
         zoom100.set_image(image)
         zoom100.set_tooltip_text('원본 화면')
+        zoom100.set_sensitive(False)
         hbox.pack_start(zoom100, False, False, 3)
         
         image = Gtk.Image()
@@ -70,6 +81,7 @@ class PurunNVR(object):
         zoomout = Gtk.Button()
         zoomout.set_image(image)
         zoomout.set_tooltip_text('화면 축소')
+        zoomout.set_sensitive(False)
         hbox.pack_start(zoomout, False, False, 3)
         
         grid = Gtk.Grid()
@@ -129,7 +141,6 @@ class PurunNVR(object):
         
         image = Gtk.Image()
         image.set_from_stock(Gtk.STOCK_QUIT, Gtk.IconSize.DIALOG)
-        
         quitBtn = Gtk.Button()
         quitBtn.set_image(image)
         quitBtn.set_margin_right(10)
@@ -151,7 +162,7 @@ class PurunNVR(object):
         self.manager.start()
         Gtk.main()
                 
-    def quit(self, window):
+    def quit(self, widget):
         self.manager.stop()
         Gtk.main_quit()
         
