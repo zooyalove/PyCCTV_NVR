@@ -5,7 +5,7 @@ import os
 import gi
 gi.require_version('Gst', '1.0')
 
-from gi.repository import Gst, GObject, Gtk
+from gi.repository import Gst, GObject, Gtk, Gdk
 #from gi.repository import GdkX11, GstVideo
 
 from pushbullet import Pushbullet
@@ -29,11 +29,12 @@ class PurunNVR(object):
     MAX_CAMERA_NUM = 4
     APP_PATH = os.path.abspath(os.path.dirname(__file__))
     RESOURCE_PATH = os.path.join(APP_PATH, 'resources')
-    VIDEO_PATH = os.path.join(APP_PATH, 'videos')
-    SNAPSHOT_PATH = os.path.join(APP_PATH, 'snapshot')
-    SNAPSHOT_PREFIX = 'sshot_'    
     
     def __init__(self):
+        self.VIDEO_PATH = os.path.join(self.APP_PATH, 'videos')
+        self.SNAPSHOT_PATH = os.path.join(self.APP_PATH, 'snapshot')
+        self.SNAPSHOT_PREFIX = 'sshot_'
+            
         self.pb = Pushbullet(PB_API_KEY) 
         self.setupUI()
 
@@ -169,6 +170,7 @@ class PurunNVR(object):
                 
 if __name__ == "__main__":
     GObject.threads_init()
+    Gdk.threads_init()
     Gst.init(None)
 
     app = PurunNVR()

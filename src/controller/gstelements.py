@@ -1,4 +1,6 @@
+import os
 from datetime import datetime
+
 import gi
 gi.require_version('Gst', '1.0')
 
@@ -6,14 +8,16 @@ from gi.repository import Gst, Gdk, GLib, GstApp
 from pushbullet import Pushbullet
 
 class Pipeline(object):
-    def __init__(self, name):
+    def __init__(self, app, name):
+        self.app = app
         self.pipe = Gst.ElementFactory.make('pipeline', name)
         
 class SnapshotPipeline(Pipeline):
-    def __init__(self, pb, name):
-        super(SnapshotPipeline, self).__init__(name + '_snap_pipe')
+    def __init__(self, pb, app, name):
+        super(SnapshotPipeline, self).__init__(app, name + '_snap_pipe')
         self.file_source = ""
         self.pb = pb
+        self.name = name
         
         self.create_snapshot()
         
@@ -22,13 +26,13 @@ class SnapshotPipeline(Pipeline):
         bus.connect('message', self.on_message_cb, None)
         
     def create_snapshot(self):
-        self.appsrc = Gst.ElementFactory.make('appsrc', 'snapsrc')
+        self.appsrc = Gst.ElementFactory.make('appsrc', self.name+'_snapsrc')
         self.pipe.add(self.appsrc)
         
-        jpegenc = Gst.ElementFactory.make('jpegenc', 'jpegenc')
+        jpegenc = Gst.ElementFactory.make('jpegenc', self.name+'_jpegenc')
         self.pipe.add(jpegenc)
         
-        self.filesink = Gst.ElementFactory.make('filesink', 'jpegfilesink')
+        self.filesink = Gst.ElementFactory.make('filesink', self.name+'_jpgfilesink')
         self.pipe.add(self.filesink)
         
         self.appsrc.link(jpegenc)
@@ -39,11 +43,11 @@ class SnapshotPipeline(Pipeline):
         g_datetime = dtime.to_g_date_time()
         timestamp = g_datetime.format("%F_%H%M%S")
         timestamp = timestamp.replace("-", "")
-        filename = "sshot_" + timestamp + ".jpg"
+        filename = self.app.app.SNAPSHOT_PREFIX + self.name + '_' + timestamp + ".jpg"
         self.file_source = filename
         print("Filename : %s" % filename)
         
-        self.filesink.set_property('location', filename)
+        self.filesink.set_property('location', os.path.join(self.app.SNAPSHOT_PATH, filename))
         self.filesink.set_property('async', False)
         
         self.pipe.set_state(Gst.State.PLAYING)
@@ -85,18 +89,18 @@ class SnapshotPipeline(Pipeline):
         
             
 class FilePipeline(Pipeline):
-    def __init__(self, name):
-        super(FilePipeline, self).__init__(name + '_rec_pipe')
+    def __init__(self, app, name):
+        super(FilePipeline, self).__init__(app, name+'_rec_pipe')
         
         self.rec_thread_id = 0
         
-        self.appsrc = Gst.ElementFactory.make('appsrc', 'recsrc')
+        self.appsrc = Gst.ElementFactory.make('appsrc', name+'_recsrc')
         self.pipe.add(self.appsrc)
-        self.rec_parse = Gst.ElementFactory.make('h264parse', 'rec_parse')
+        self.rec_parse = Gst.ElementFactory.make('h264parse', name+'_rec_parse')
         self.pipe.add(self.rec_parse)
-        mp4mux = Gst.ElementFactory.make('mp4mux', 'mp4mux')
+        mp4mux = Gst.ElementFactory.make('mp4mux', name+'_mp4mux')
         self.pipe.add(mp4mux)
-        self.filesink = Gst.ElementFactory.make('filesink', 'filesink')
+        self.filesink = Gst.ElementFactory.make('filesink', name+'_recfilesink')
         self.pipe.add(self.filesink)
         
         self.appsrc.link(self.rec_parse)
@@ -122,7 +126,7 @@ class FilePipeline(Pipeline):
             timestamp = timestamp.replace("-", "")
             filename = timestamp + ".mp4"
             print("Filename : %s" % filename)
-            self.filesink.set_property('location', filename)
+            self.filesink.set_property('location', os.path.join(self.app.VIDEO_DIR, filename))
             self.filesink.set_property('async', False)
             
             print("Rec Pipeline state : ")
@@ -194,36 +198,35 @@ class Bin(object):
 
 class SourceBin(Bin):
     def __init__(self, source, app, name):
-        super(SourceBin, self).__init__(app, name + '_src_bin')
+        super(SourceBin, self).__init__(app, name+'_src_bin')
         
-        src = Gst.ElementFactory.make('tcpclientsrc', name + '_src')
-        src.set_property('host', source['host'])
+        src = Gst.ElementFactory.make('tcpclientsrc', name+'_src')
+        src.set_property('host', source['ip'])
         src.set_property('port', source['port'])
         self.add(src)
-        demux = Gst.ElementFactory.make('decodebin', 'demux')
-        self.add(demux)
-        vidconv = Gst.ElementFactory.make('videoconvert', 'vidconv')
-        self.add(vidconv)
         
-        demux.connect('pad-added', self.on_pad_added, vidconv)
+        depay = Gst.ElementFactory.make('gdpdepay', name+'_depay')
+        self.add(depay)
         
-        src.link(demux)
+        rtpdepay = Gst.ElementFactory.make('rtph264depay', name+'_rtpdepay')
+        self.add(rtpdepay)
         
-        g_pad = Gst.GhostPad.new('src', vidconv.get_static_pad('src'))
+        parse = Gst.ElementFactory.make('h264parse', name+'_parse')
+        self.add(parse)
+        
+        g_pad = Gst.GhostPad.new('src', parse.get_static_pad('src'))
         self.add_pad(g_pad)
         
-    def on_pad_added(self, demuxer, pad, data):
-        parse_pad = data.get_static_pad('sink')
-        if pad.can_link(parse_pad):
-            pad.link(parse_pad)
-
 
 class VideoBin(Bin):
     def __init__(self, app, name):
-        super(VideoBin, self).__init__(app, name + '_video_bin')
+        super(VideoBin, self).__init__(app, name+'_video_bin')
         
         vid_q = Gst.ElementFactory.make('queue', None)
         self.add(vid_q)
+        
+        
+        
         vidsink = Gst.ElementFactory.make('autovideosink', None)
         vidsink.set_property('sync', True)
         self.add(vidsink)
@@ -236,7 +239,7 @@ class VideoBin(Bin):
 
 class RecordBin(Bin):
     def __init__(self, app, name):
-        super(RecordBin, self).__init__(app, name + '_rec_bin')
+        super(RecordBin, self).__init__(app, name+'_rec_bin')
         
         rec_q = Gst.ElementFactory.make('queue', None)
         self.add(rec_q)

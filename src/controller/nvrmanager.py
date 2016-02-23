@@ -1,7 +1,7 @@
 import gi
 gi.require_version('Gst', '1.0')
 
-from gi.repository import Gst, Gtk, Gdk
+from gi.repository import Gst, Gtk
 
 class NvrManager(Gtk.VBox):
     def __init__(self, app):

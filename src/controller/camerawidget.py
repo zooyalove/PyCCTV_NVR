@@ -1,5 +1,6 @@
 import sys, os
 import gi
+from src.controller.gstelements import CameraBin
 gi.require_version('Gtk', '3.0')
 
 from gi.repository import Gtk, Gdk, Gst, Pango
@@ -16,18 +17,26 @@ class CameraWidget(Gtk.VBox):
     
     def __init__(self, app, name, source={'ip':'127.0.0.1', 'port':5000}, size=(640, 360), save_timeout=60):
         super(CameraWidget, self).__init__()
-        
+
         self.app = app
         self.is_playing = False
+        self.__camera_bin = None
         
+        self._video_dir_config(name)
         self.set_source(source)
         self.__set_camera_name(name)
         self.set_size(size)
         self.set_save_timeout(save_timeout) # save_timeout => minute
         self._setupUI()
-        if source is not None:
-            self.__createCameraBin()
-        
+
+    def _video_dir_config(self, name):
+        name = name.upper()
+        dir_name = os.path.join(self.app.VIDEO_PATH, name)
+        if not os.path.exists(dir_name):
+            os.mkdir(dir_name)
+            
+        self.VIDEO_DIR = dir_name
+                
     def _setupUI(self):
         
         self._overlay = Gtk.Overlay()
@@ -80,107 +89,13 @@ class CameraWidget(Gtk.VBox):
         self.show_all()
     
     
-    def __createCameraBin(self):
-        c_name = self.get_camera_name().lower()
-        self.__camera_bin = Gst.ElementFactory.make('bin', c_name + "_bin")
-        src = self.__createSourceBin()
-        self.__camera_bin.add(src)
+    def __createCameraBin(self, source):
+        if self.__camera_bin is not None:
+            self.__camera_bin = None
         
-        tee = Gst.ElementFactory.make('tee', c_name + "_tee")
-        self.__camera_bin.add(tee)
-        
-        vidsink = self.__createVideoSinkBin()
-        self.__camera_bin.add(vidsink)
-        
-        src.link(tee)
-        
-        src_pad = tee.get_request_pad("src_%u")
-        src_pad.link(vidsink.get_static_pad('sink'))
-        
-        ret = self.__camera_bin.set_state(Gst.State.READY)
-        if ret == Gst.StateChangeReturn.FAILURE:
-            print("State of " + c_name.upper() + " change Failured.")
-            self.__camera_bin.set_state(Gst.State.NULL)
+        self.__camera_bin = CameraBin(source, self.app, self.get_camera_name().lower()) 
         
         
-    def __createSourceBin(self):
-        c_name = self.get_camera_name().lower() 
-        source_bin = Gst.ElementFactory.make('bin', c_name + "_src_bin")
-        
-        cam_src = Gst.ElementFactory.make('tcpclientsrc', c_name + "_src")
-        cam_src.set_property('host', self.__source["ip"])
-        cam_src.set_property('port', self.__source["port"])
-        source_bin.add(cam_src)
-        
-        gdpdepay = Gst.ElementFactory.make('gdpdepay', None)
-        source_bin.add(gdpdepay)
-        
-        rtpdepay = Gst.ElementFactory.make('rtph264depay', None)
-        source_bin.add(rtpdepay)
-        
-        h264parse = Gst.ElementFactory.make('h264parse', None)
-        source_bin.add(h264parse)
-        
-        cam_src.link(gdpdepay)
-        gdpdepay.link(rtpdepay)
-        rtpdepay.link(h264parse)
-        
-        gh_pad = Gst.GhostPad.new('src', h264parse.get_static_pad('src'))
-        gh_pad.set_active(True)
-        source_bin.add_pad(gh_pad)
-        
-        return source_bin
-        
-        
-    def __createVideoSinkBin(self):
-        c_name = self.get_camera_name().lower()
-        
-        sink_bin = Gst.ElementFactory.make('bin', c_name + "_vidsink_bin")
-        
-        queue = Gst.ElementFactory.make('queue', None)
-        sink_bin.add(queue)
-        
-        avdec = Gst.ElementFactory.make('avdec_h264', None)
-        sink_bin.add(avdec)
-        
-        conv1 = Gst.ElementFactory.make('videoconvert', None)
-        sink_bin.add(conv1)
-        
-        self.videocrop = Gst.ElementFactory.make('videocrop', c_name + "_crop")
-        sink_bin.add(self.videocrop)
-        
-        scale = Gst.ElementFactory.make('videoscale', None)
-        sink_bin.add(scale)
-        
-        caps = Gst.caps_from_string("video/x-raw, width=" + str(self._size[0]) + ", height=" + str(self._size[1]))
-        capsfilter = Gst.ElementFactory.make('capsfilter', None)
-        capsfilter.set_property('caps', caps)
-        sink_bin.add(capsfilter)
-        
-        conv2 = Gst.ElementFactory.make('videoconvert', None)
-        sink_bin.add(conv2)
-        
-        if self.IS_LINUX:
-            self._vid_sink = Gst.ElementFactory.make('xvimagesink', c_name + "_videosink")
-        else:
-            self._vid_sink = Gst.ElementFactory.make('d3dvideosink', c_name + "_videosink")
-        self._vid_sink.set_property('sync', False)
-        sink_bin.add(self._vid_sink)
-        
-        queue.link(avdec)
-        avdec.link(conv1)
-        conv1.link(self.videocrop)
-        self.videocrop.link(scale)
-        scale.link(capsfilter)
-        capsfilter.link(conv2)
-        conv2.link(self._vid_sink)
-        
-        gh_pad = Gst.GhostPad.new('sink', queue.get_static_pad('sink'))
-        gh_pad.set_active(True)
-        sink_bin.add_pad(gh_pad)
-        
-        return sink_bin
-    
     def _on_video_loading(self, widget, event):
         self._rec_image.set_from_stock(self.RECORD_IMAGE, Gtk.IconSize.LARGE_TOOLBAR)
         self._rec_text.set_text(self.RECORDING)
@@ -211,6 +126,8 @@ class CameraWidget(Gtk.VBox):
         
     def set_source(self, source):
         self.__source = source
+        if source is not None:
+            self.__createCameraBin(source)
         
     def set_save_timeout(self, timeout):
         self.__save_timeout = timeout
