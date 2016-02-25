@@ -4,7 +4,7 @@ from datetime import datetime
 import gi
 gi.require_version('Gst', '1.0')
 
-from gi.repository import Gst, Gdk, GLib, GstApp
+from gi.repository import GObject, Gst, Gdk, GLib, GstApp
 from pushbullet import Pushbullet
 
 class Pipeline(object):
@@ -78,6 +78,7 @@ class SnapshotPipeline(Pipeline):
             print("")
             self.pipe.set_state(Gst.State.NULL)
             
+            Gdk.threads_enter()
             if self.file_source != "":
                 with open(self.file_source, 'rb') as pic:
                     file_data = self.pb.upload_file(pic, self.file_source)
@@ -86,7 +87,7 @@ class SnapshotPipeline(Pipeline):
                 push = self.pb.push_file(title="Motion detected", **file_data)
                 print(push)
                 self.file_source = ""
-        
+            Gdk.threads_leave()
             
 class FilePipeline(Pipeline):
     def __init__(self, app, name):
@@ -225,13 +226,19 @@ class VideoBin(Bin):
         vid_q = Gst.ElementFactory.make('queue', None)
         self.add(vid_q)
         
+        dec = Gst.ElementFactory.make('avdec_h264', None)
+        self.add(dec)
         
+        conv = Gst.ElementFactory.make('videoconvert', None)
+        self.add(conv)
         
         vidsink = Gst.ElementFactory.make('autovideosink', None)
         vidsink.set_property('sync', True)
         self.add(vidsink)
         
-        vid_q.link(vidsink)
+        vid_q.link(dec)
+        dec.link(conv)
+        conv.link(vidsink)
         
         g_pad = Gst.GhostPad.new('sink', vid_q.get_static_pad('sink'))
         self.add_pad(g_pad)
@@ -359,6 +366,11 @@ class MotionBin(Bin):
     
                 
 class CameraBin(Bin):
+    __gsignals__ = {
+            'record-start' : (GObject.SIGNAL_RUN_LAST, GObject.TYPE_NONE, (GObject.TYPE_NONE,)),
+            'record-stop' : (GObject.SIGNAL_RUN_LAST, GObject.TYPE_NONE, (GObject.TYPE_NONE,))
+            }
+    
     def __init__(self, source, app, name):
         super(CameraBin, self).__init__(app, name + '_bin')
         
@@ -379,3 +391,4 @@ class CameraBin(Bin):
         
         self.motion = MotionBin(self, name)
         self.add(self.motion)
+        
