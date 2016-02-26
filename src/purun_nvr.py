@@ -62,102 +62,31 @@ class PurunNVR(object):
         hbox.pack_start(Gtk.Label(), True, True, 0)
         
         image = Gtk.Image()
-        image.set_from_stock(Gtk.STOCK_ZOOM_IN, Gtk.IconSize.DIALOG)
-        zoomin = Gtk.Button()
-        zoomin.set_image(image)
-        zoomin.set_margin_left(10)
-        zoomin.set_tooltip_text('화면 확대')
-        hbox.pack_start(zoomin, False, False, 3)
-        
-        image = Gtk.Image()
-        image.set_from_stock(Gtk.STOCK_ZOOM_100, Gtk.IconSize.DIALOG)
-        zoom100 = Gtk.Button()
-        zoom100.set_image(image)
-        zoom100.set_tooltip_text('원본 화면')
-        zoom100.set_sensitive(False)
-        hbox.pack_start(zoom100, False, False, 3)
-        
-        image = Gtk.Image()
-        image.set_from_stock(Gtk.STOCK_ZOOM_OUT, Gtk.IconSize.DIALOG)
-        zoomout = Gtk.Button()
-        zoomout.set_image(image)
-        zoomout.set_tooltip_text('화면 축소')
-        zoomout.set_sensitive(False)
-        hbox.pack_start(zoomout, False, False, 3)
-        
-        grid = Gtk.Grid()
-        grid.set_column_spacing(2)
-        grid.set_row_spacing(2)
-        
-        arwLeft = Gtk.Button()
-        arwLeft.add(Gtk.Arrow(Gtk.ArrowType.LEFT, Gtk.ShadowType.NONE))
-        arwLeft.set_tooltip_text('왼쪽으로 화면 이동')
-        
-        arwTop = Gtk.Button()
-        arwTop.add(Gtk.Arrow(Gtk.ArrowType.UP, Gtk.ShadowType.NONE))
-        arwTop.set_tooltip_text('상단으로 화면 이동')
-
-        arwRight = Gtk.Button()
-        arwRight.add(Gtk.Arrow(Gtk.ArrowType.RIGHT, Gtk.ShadowType.NONE))
-        arwRight.set_tooltip_text('오른쪽으로 화면 이동')
-
-        arwBottom = Gtk.Button()
-        arwBottom.add(Gtk.Arrow(Gtk.ArrowType.DOWN, Gtk.ShadowType.NONE))
-        arwBottom.set_tooltip_text('하단으로 화면 이동')
-        
-        image = Gtk.Image()
-        image.set_from_stock(Gtk.STOCK_ZOOM_FIT, Gtk.IconSize.BUTTON)
-        
-        arwCenter = Gtk.Button()
-        arwCenter.set_image(image)
-        arwCenter.set_tooltip_text('원점으로 화면 재배치')
-        
-        grid.attach(arwTop, 1, 0, 1, 1)
-        grid.attach(arwLeft, 0, 1, 1, 1)
-        grid.attach(arwCenter, 1, 1, 1, 1)
-        grid.attach(arwRight, 2, 1, 1, 1)
-        grid.attach(arwBottom, 1, 2, 1, 1)
-        
-        hbox.pack_start(grid, False, False, 2)
-        hbox.pack_start(Gtk.Label(), True, True, 0)
-        
-        boxHdd = Gtk.VBox()
-        boxHdd.pack_start(Gtk.Label(), True, True, 0)
-        
-        self.lvlHDD = Gtk.LevelBar()
-        self.lvlHDD.set_min_value(0.0)
-        self.lvlHDD.set_max_value(1.0)
-        self.lvlHDD.set_value(0.5)
-        self.lvlHDD.set_size_request(300, -1)
-        self.lvlHDD.set_margin_left(10)
-        self.lvlHDD.set_margin_right(10)
-        boxHdd.pack_start(self.lvlHDD, True, False, 5)
-        
-        self.lblHdd_Percent = Gtk.Label()
-        self.lblHdd_Percent.set_text("Usage / Total - 50%")
-        boxHdd.pack_start(self.lblHdd_Percent, True, True, 0)
-        boxHdd.pack_end(Gtk.Label(), True, True, 0)
-        
-        hbox.pack_start(boxHdd, True, True, 0)
-        
-        image = Gtk.Image()
-        image.set_from_stock(Gtk.STOCK_QUIT, Gtk.IconSize.DIALOG)
+        image.set_from_stock(Gtk.STOCK_QUIT, Gtk.IconSize.BUTTON)
         quitBtn = Gtk.Button()
         quitBtn.set_image(image)
         quitBtn.set_margin_right(10)
         quitBtn.set_tooltip_text('프로그램 끝내기')
         quitBtn.connect('clicked', self.quit)
-        hbox.pack_start(quitBtn, False, False, 0)
+        hbox.pack_end(quitBtn, False, False, 0)
         
-        hbox.pack_start(Gtk.Label(), True, True, 0)
+        boxHdd = Gtk.VBox()
         
-
-    def on_zoomin(self, widget):
-        pass
-    
-    def on_zoomout(self, widget):
-        pass
-    
+        self.lvlHDD = Gtk.LevelBar()
+        self.lvlHDD.set_min_value(0.0)
+        self.lvlHDD.set_max_value(1.0)
+        self.lvlHDD.set_value(0.5)
+        self.lvlHDD.set_size_request(250, -1)
+        self.lvlHDD.set_margin_left(10)
+        self.lvlHDD.set_margin_right(10)
+        boxHdd.pack_start(self.lvlHDD, False, False, 5)
+        
+        self.lblHdd_Percent = Gtk.Label()
+        self.lblHdd_Percent.set_text("Usage / Total - 50%")
+        boxHdd.pack_start(self.lblHdd_Percent, True, False, 0)
+        
+        hbox.pack_end(boxHdd, False, False, 0)
+        
     def start(self):
         self.win.show_all()
         self.manager.start()

@@ -1,10 +1,11 @@
-import sys, os
+import sys, os, time, threading
+
 import gi
-from src.controller.gstelements import CameraBin
 gi.require_version('Gtk', '3.0')
 
 from gi.repository import Gtk, Gdk, Gst, Pango
-from pushbullet import Pushbullet
+
+from src.controller.gstelements import CameraBin
 from src.controller.videowidget import VideoWidget
 
 class CameraWidget(Gtk.VBox):
@@ -33,7 +34,8 @@ class CameraWidget(Gtk.VBox):
         name = name.upper()
         dir_name = os.path.join(self.app.VIDEO_PATH, name)
         if not os.path.exists(dir_name):
-            os.mkdir(dir_name)
+            pass
+            #os.mkdir(dir_name)
             
         self.VIDEO_DIR = dir_name
                 
@@ -75,7 +77,7 @@ class CameraWidget(Gtk.VBox):
         hbox.set_margin_bottom(10)
         
         self._rec_image = Gtk.Image()
-        self._rec_image.set_from_stock(self.STOP_IMAGE, Gtk.IconSize.LARGE_TOOLBAR)
+        self._rec_image.set_from_stock(self.RECORD_IMAGE, Gtk.IconSize.LARGE_TOOLBAR)
         self._rec_image.set_margin_right(5)
         hbox.pack_start(self._rec_image, False, False, 0)
         
@@ -93,12 +95,28 @@ class CameraWidget(Gtk.VBox):
         if self.__camera_bin is not None:
             self.__camera_bin = None
         
-        self.__camera_bin = CameraBin(source, self.app, self.get_camera_name().lower()) 
+        self.__camera_bin = CameraBin(source, self.app, self.get_camera_name().lower())
+        self.__camera_bin.connect('recording', self._on_video_recording)
         
-        
-    def _on_video_loading(self, widget, event):
-        self._rec_image.set_from_stock(self.RECORD_IMAGE, Gtk.IconSize.LARGE_TOOLBAR)
-        self._rec_text.set_text(self.RECORDING)
+    
+    def _on_video_recording(self, cambin, bRecord):
+        if bRecord:
+            def record_blink():
+                while bRecord:
+                    if self._rec_image.get_opacity() > 0.3:
+                        self._rec_image.set_opacity(0.3)
+                    else:
+                        self._rec_image.set_opacity(1.0)
+                        
+                    time.sleep(1)
+            
+            t = threading.Thread(target=record_blink)
+            t.start()
+            
+            self._rec_text.set_text(self.RECORDING)
+        else:
+            self._rec_image.set_opacity(1.0)
+            self._rec_text.set_text(self.NOT_RECORD)
         
     def get_size(self):
         return self._size

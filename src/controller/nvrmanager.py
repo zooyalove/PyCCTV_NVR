@@ -22,7 +22,7 @@ class NvrManager(Gtk.VBox):
         self.cameras[camera_name] = camera
     
         if camera.get_source() is not None:
-            self.player.add(camera.get_bin())
+            self.player.add(camera.get_bin().bin)
         
     def player_configure(self):    
         bus = self.player.get_bus()
