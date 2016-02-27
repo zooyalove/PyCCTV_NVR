@@ -41,10 +41,10 @@ class SnapshotPipeline(Pipeline):
         timestamp = g_datetime.format("%F_%H%M%S")
         timestamp = timestamp.replace("-", "")
         filename = self.app.app.SNAPSHOT_PREFIX + self.name + '_' + timestamp + ".jpg"
-        self.file_source = filename
+        self.file_source = os.path.join(self.app.config['SNAPSHOT_PATH'], filename)
         print("Filename : %s" % filename)
         
-        self.filesink.set_property('location', os.path.join(self.app.SNAPSHOT_PATH, filename))
+        self.filesink.set_property('location', self.file_source)
         self.filesink.set_property('async', False)
         
         self.pipe.set_state(Gst.State.PLAYING)
@@ -128,7 +128,7 @@ class FilePipeline(Pipeline):
             timestamp = timestamp.replace("-", "")
             filename = timestamp + ".mp4"
             print("Filename : %s" % filename)
-            self.filesink.set_property('location', os.path.join(self.app.VIDEO_DIR, filename))
+            self.filesink.set_property('location', os.path.join(self.app.config['VIDEO_DIR'], filename))
             self.filesink.set_property('async', False)
             
             print("Rec Pipeline state : ")
@@ -443,29 +443,33 @@ class CameraBin(Bin):
         tee = Gst.ElementFactory.make('tee', name+'_tee')
         self.add(tee)
         
+        self.src.bin.link(tee)
+        
         self.video = VideoBin(name)
         self.add(self.video.bin)
-        
-        self.record = RecordBin(self, name)
-        self.add(self.record.bin)
-        
-        self.motion = MotionBin(self, name)
-        self.add(self.motion.bin)
-        
-        self.websrv = WebServiceBin(dest, name)
-        self.add(self.websrv.bin)
-        
-        self.src.bin.link(tee)
         
         vid_t_pad = tee.get_request_pad('src_%u')
         vid_t_pad.link(self.video.bin.get_static_pad('sink'))
         
+        self.record = RecordBin(self, name)
+        self.add(self.record.bin)
+        
         rec_t_pad = tee.get_request_pad('src_%u')
         rec_t_pad.link(self.record.bin.get_static_pad('sink'))
         
-        mot_t_pad = tee.get_request_pad('src_%u')
-        mot_t_pad.link(self.motion.bin.get_static_pad('sink'))
-
+        self.websrv = WebServiceBin(dest, name)
+        self.add(self.websrv.bin)
+        
         web_t_pad = tee.get_request_pad('src_%u')
         web_t_pad.link(self.websrv.bin.get_static_pad('sink'))
         
+        if self.app.config['MOTION']:
+            self.motion = MotionBin(self, name)
+            self.add(self.motion.bin)
+            mot_t_pad = tee.get_request_pad('src_%u')
+            mot_t_pad.link(self.motion.bin.get_static_pad('sink'))
+
+    def start_recording(self):
+        if self.app.config['MOTION']:
+            self.snapshot.send_snapshot()
+            

@@ -3,7 +3,7 @@ import sys, os, time, threading
 import gi
 gi.require_version('Gtk', '3.0')
 
-from gi.repository import Gtk, Gdk, Gst, Pango
+from gi.repository import Gtk, Gdk, Pango
 
 from src.controller.gstelements import CameraBin
 from src.controller.videowidget import VideoWidget

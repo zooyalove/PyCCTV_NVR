@@ -19,8 +19,6 @@ PB_API_KEY = 'o.cJzinoZ3SdlW7JxYeDm7tbIrueQAW5aK'
     - PurunNVR 클래스의 기능 -
         > 화면 보이기
         > 파일 저장하기 
-        > 화면 확대, 축소, 원점으로 되돌리기
-        > 화면 이동하기(좌, 우, 상, 하)
         > 모션 감지시 사진 저장하고 PushBullet으로 사진 전송하기 
         > 모션감지는 설정에 의해서 기능가능 여부를 판단한다 
 """
@@ -31,9 +29,11 @@ class PurunNVR(object):
     RESOURCE_PATH = os.path.join(APP_PATH, 'resources')
     
     def __init__(self):
-        self.VIDEO_PATH = os.path.join(self.APP_PATH, 'videos')
-        self.SNAPSHOT_PATH = os.path.join(self.APP_PATH, 'snapshot')
-        self.SNAPSHOT_PREFIX = 'sshot_'
+        self.config = {}
+        self.config['VIDEO_PATH'] = os.path.join(self.APP_PATH, 'videos')
+        self.config['SNAPSHOT_PATH'] = os.path.join(self.APP_PATH, 'snapshot')
+        self.config['SNAPSHOT_PREFIX'] = 'sshot_'
+        self.config['MOTION'] = True
             
         self.pb = Pushbullet(PB_API_KEY) 
         self.setupUI()

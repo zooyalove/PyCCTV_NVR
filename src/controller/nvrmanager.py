@@ -3,6 +3,9 @@ gi.require_version('Gst', '1.0')
 
 from gi.repository import Gst, Gtk
 
+"""
+@param app: Root class -> Purun NVR
+"""
 class NvrManager(Gtk.VBox):
     def __init__(self, app):
         super(NvrManager, self).__init__()
@@ -61,6 +64,20 @@ class NvrManager(Gtk.VBox):
             
             self.app.quit(None)
             
+        elif t == Gst.MessageType.ELEMENT:
+            if self.app.config['MOTION']:
+                s = msg.get_structure()
+                if s.has_name("motion"):
+                    el = msg.src
+                    deviceID = el.get_name().split('_')[0]
+                    
+                    if s.has_field("motion_begin"):
+                        indices = s.get_string('motion_cells_indices')
+                        print("Motion detected in area(s) : %s" % indices)
+                        self.cameras[deviceID].start_recording()
+                    elif s.has_field("motion_finished"):
+                        print("Motion end")
+    
        
     def start(self):
         self.player.set_state(Gst.State.PLAYING)
