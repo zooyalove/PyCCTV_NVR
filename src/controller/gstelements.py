@@ -11,6 +11,7 @@ class Pipeline(GObject.GObject):
     def __init__(self, app, name):
         self.app = app
         self.pipe = Gst.ElementFactory.make('pipeline', name)
+
         
 class SnapshotPipeline(Pipeline):
     def __init__(self, app, name):
@@ -84,6 +85,7 @@ class SnapshotPipeline(Pipeline):
                 print(push)
                 self.file_source = ""
             Gdk.threads_leave()
+
             
 class FilePipeline(Pipeline):
     __gsignals__ = {
@@ -107,14 +109,12 @@ class FilePipeline(Pipeline):
         
         self.appsrc.link(self.rec_parse)
         recp_pad = self.rec_parse.get_static_pad('src')
-        mp4_pad = mp4mux.get_request_pad('video_%u')
-        recp_pad.link(mp4_pad)
+        recp_pad.link(mp4mux.get_request_pad('video_%u'))
         mp4mux.link(self.filesink)
         
         recbus = self.pipe.get_bus()
         recbus.add_signal_watch()
         recbus.connect('message', self.on_message_cb, None)
-        
         
     def start_recording(self):
         print("Record start - start")
@@ -137,14 +137,14 @@ class FilePipeline(Pipeline):
                 self.pipe.set_state(Gst.State.PLAYING)
                 print(datetime.now())
                 self.emit('rec-started')
-                self.start_timer()
+                self.start_timer(30)
             
         print("Record start - end")
 
-    def start_timer(self):
+    def start_timer(self, timeout):
         Gdk.threads_enter()
         print("Timer start : %s" % datetime.now())
-        self.rec_thread_id = GLib.timeout_add_seconds(30, self.stop_recording)
+        self.rec_thread_id = GLib.timeout_add_seconds(timeout, self.stop_recording)
         print(self.rec_thread_id)
         Gdk.threads_leave()
         print("Timer end")
@@ -225,8 +225,8 @@ class SourceBin(Bin):
         
 
 class VideoBin(Bin):
-    def __init__(self, app, name):
-        super(VideoBin, self).__init__(app, name+'_video_bin')
+    def __init__(self, name):
+        super(VideoBin, self).__init__(None, name+'_video_bin')
         
         vid_q = Gst.ElementFactory.make('queue', None)
         self.add(vid_q)
@@ -238,7 +238,7 @@ class VideoBin(Bin):
         self.add(conv)
         
         vidsink = Gst.ElementFactory.make('autovideosink', None)
-        vidsink.set_property('sync', True)
+        vidsink.set_property('sync', False)
         self.add(vidsink)
         
         vid_q.link(dec)
@@ -261,9 +261,9 @@ class RecordBin(Bin):
         
         rate = Gst.ElementFactory.make('videorate', None)
         self.add(rate)
-        filter = Gst.ElementFactory.make('capsfilter', None)
-        filter.set_property('caps', Gst.caps_from_string("video/x-raw, framerate=(fraction)15/1"))
-        self.add(filter)
+        filter1 = Gst.ElementFactory.make('capsfilter', None)
+        filter1.set_property('caps', Gst.caps_from_string("video/x-raw, framerate=(fraction)15/1"))
+        self.add(filter1)
         vidconv = Gst.ElementFactory.make('videoconvert', None)
         self.add(vidconv)
         enc = Gst.ElementFactory.make('x264enc', name+'_enc')
@@ -280,8 +280,8 @@ class RecordBin(Bin):
         
         rec_q.link(dec)
         dec.link(rate)
-        rate.link(filter)
-        filter.link(vidconv)
+        rate.link(filter1)
+        filter1.link(vidconv)
         vidconv.link(enc)
         enc.link(filter2)
         filter2.link(recsink)
@@ -324,9 +324,9 @@ class MotionBin(Bin):
         
         rate = Gst.ElementFactory.make('videorate', None)
         self.add(rate)
-        filter = Gst.ElementFactory.make('capsfilter', None)
-        filter.set_property('caps', Gst.caps_from_string("video/x-raw, framerate=(fraction)4/1"))
-        self.add(filter)
+        filter1 = Gst.ElementFactory.make('capsfilter', None)
+        filter1.set_property('caps', Gst.caps_from_string("video/x-raw, framerate=(fraction)4/1"))
+        self.add(filter1)
         vidconv = Gst.ElementFactory.make('videoconvert', None)
         self.add(vidconv)
         
@@ -343,8 +343,8 @@ class MotionBin(Bin):
         motion_q.link(dec)
         dec.link(vidcrop)
         vidcrop.link(rate)
-        rate.link(filter)
-        filter.link(vidconv)
+        rate.link(filter1)
+        filter1.link(vidconv)
         vidconv.link(motioncells)
         motioncells.link(motionsink)
         
@@ -369,7 +369,55 @@ class MotionBin(Bin):
         
         return Gst.FlowReturn.OK
     
-                
+
+class WebServiceBin(Bin):
+    def __init__(self, dest, name):
+        super(WebServiceBin, self).__init__(None, name+'_websrv')
+        
+        web_q = Gst.ElementFactory.make('queue', None)
+        self.add(web_q)
+        
+        dec = Gst.ElementFactory.make('avdec_h264', None)
+        self.add(dec)
+        
+        scale = Gst.ElementFactory.make('videoscale', None)
+        self.add(scale)
+        filter1 = Gst.ElementFactory.make('capsfilter', None)
+        filter1.set_property('caps', Gst.caps_from_string("video/x-raw, width=320, height=180, framerate=(fraction)5/1"))
+        self.add(filter1)
+        vidconv = Gst.ElementFactory.make('videoconvert', None)
+        self.add(vidconv)
+        vp8enc = Gst.ElementFactory.make('vp8enc', None)
+        self.add(vp8enc)
+        
+        webmmux = Gst.ElementFactory.make('webmmux', name+'_webmmux')
+        self.add(webmmux)
+        
+        filter2 = Gst.ElementFactory.make('capsfilter', None)
+        filter2.set_property('caps', Gst.caps_from_string('video/webm'))
+        self.add(filter2)
+        
+        srvsink = Gst.ElementFactory.make('tcpserversink', None)
+        srvsink.set_property('host', dest['ip'])
+        srvsink.set_property('port', dest['port'])
+        self.add(srvsink)
+        
+        web_q.link(dec)
+        dec.link(scale)
+        scale.link(filter1)
+        filter1.link(vidconv)
+        vidconv.link(vp8enc)
+        
+        v_pad = vp8enc.get_static_pad('src')
+        v_pad.link(webmmux.get_request_pad('video_%u'))
+        
+        webmmux.link(filter2)
+        filter2.link(srvsink)
+        
+        g_pad = Gst.GhostPad.new('sink', web_q.get_static_pad('sink'))
+        self.add_pad(g_pad)
+        
+
 class CameraBin(Bin):
     __gsignals__ = {
             'recording' : (GObject.SIGNAL_RUN_LAST, GObject.TYPE_NONE, (GObject.TYPE_BOOLEAN,))
@@ -377,7 +425,7 @@ class CameraBin(Bin):
     """
     @param app: Root class -> Purun NVR
     """
-    def __init__(self, source, app, name):
+    def __init__(self, source, dest, app, name):
         super(CameraBin, self).__init__(app, name+'_bin')
         
         def on_recording(filerec, bRecord):
@@ -390,19 +438,22 @@ class CameraBin(Bin):
         self.snapshot = SnapshotPipeline(app, name)
         
         self.src = SourceBin(source, self, name)
-        self.add(self.src)
+        self.add(self.src.bin)
         
         tee = Gst.ElementFactory.make('tee', name+'_tee')
         self.add(tee)
         
-        self.video = VideoBin(self, name)
-        self.add(self.video)
+        self.video = VideoBin(name)
+        self.add(self.video.bin)
         
         self.record = RecordBin(self, name)
-        self.add(self.record)
+        self.add(self.record.bin)
         
         self.motion = MotionBin(self, name)
-        self.add(self.motion)
+        self.add(self.motion.bin)
+        
+        self.websrv = WebServiceBin(dest, name)
+        self.add(self.websrv.bin)
         
         self.src.bin.link(tee)
         
@@ -414,4 +465,7 @@ class CameraBin(Bin):
         
         mot_t_pad = tee.get_request_pad('src_%u')
         mot_t_pad.link(self.motion.bin.get_static_pad('sink'))
+
+        web_t_pad = tee.get_request_pad('src_%u')
+        web_t_pad.link(self.websrv.bin.get_static_pad('sink'))
         

@@ -40,7 +40,7 @@ class PurunNVR(object):
 
         #cam1 = CameraWidget("CAM1", source={'ip':'songsul.iptime.org', 'port':5001})
         #self.manager.add_camera(cam1)
-        cam1 = CameraWidget(self, "CAM1", source=None)
+        cam1 = CameraWidget(self, "CAM1", source=None, dest=None)
         self.manager.add_camera(cam1)
         
     def setupUI(self):

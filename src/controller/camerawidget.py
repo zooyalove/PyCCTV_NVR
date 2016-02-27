@@ -13,14 +13,13 @@ class CameraWidget(Gtk.VBox):
     NOT_RECORD = "Don't Recording."
     RECORDING = "Now Recording..."
     
-    STOP_IMAGE = Gtk.STOCK_MEDIA_STOP
     RECORD_IMAGE = Gtk.STOCK_MEDIA_RECORD
     
-    def __init__(self, app, name, source={'ip':'127.0.0.1', 'port':5000}, size=(640, 360), save_timeout=60):
+    def __init__(self, app, name, source={'ip':'127.0.0.1', 'port':6001}, dest={'ip':'127.0.0.1', 'port':5001}, size=(640, 360), save_timeout=60):
         super(CameraWidget, self).__init__()
 
         self.app = app
-        self.is_playing = False
+        self.is_recording = False
         self.__camera_bin = None
         
         self._video_dir_config(name)
@@ -91,18 +90,19 @@ class CameraWidget(Gtk.VBox):
         self.show_all()
     
     
-    def __createCameraBin(self, source):
+    def __createCameraBin(self, source, dest):
         if self.__camera_bin is not None:
             self.__camera_bin = None
         
-        self.__camera_bin = CameraBin(source, self.app, self.get_camera_name().lower())
+        self.__camera_bin = CameraBin(source, dest, self.app, self.get_camera_name().lower())
         self.__camera_bin.connect('recording', self._on_video_recording)
         
     
     def _on_video_recording(self, cambin, bRecord):
-        if bRecord:
+        self.is_recording = bRecord
+        if self.is_recording:
             def record_blink():
-                while bRecord:
+                while self.is_recording:
                     if self._rec_image.get_opacity() > 0.3:
                         self._rec_image.set_opacity(0.3)
                     else:
