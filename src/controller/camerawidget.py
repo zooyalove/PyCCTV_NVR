@@ -31,7 +31,7 @@ class CameraWidget(Gtk.VBox):
 
     def _video_dir_config(self, name):
         name = name.upper()
-        dir_name = os.path.join(self.app.VIDEO_PATH, name)
+        dir_name = os.path.join(self.app.config['VIDEO_PATH'], name)
         if not os.path.exists(dir_name):
             pass
             #os.mkdir(dir_name)
@@ -94,7 +94,7 @@ class CameraWidget(Gtk.VBox):
         if self.__camera_bin is not None:
             self.__camera_bin = None
         
-        self.__camera_bin = CameraBin(source, dest, self.app, self.get_camera_name().lower())
+        self.__camera_bin = CameraBin(source, dest, self.VIDEO_DIR, self.app, self.get_camera_name().lower())
         self.__camera_bin.connect('recording', self._on_video_recording)
         
     

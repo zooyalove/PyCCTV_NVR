@@ -2,7 +2,6 @@ import os, time
 from datetime import datetime
 
 import gi
-from pydbus.bus import bus
 gi.require_version('Gst', '1.0')
 
 from gi.repository import GObject, Gst, Gdk, GLib, GstApp
@@ -13,16 +12,35 @@ class Pipeline(GObject.GObject):
         self.app = app
         self.pipe = Gst.ElementFactory.make('pipeline', name)
 
+        bus = self.pipe.get_bus()
+        bus.add_signal_watch()
+        bus.connect('message', self.on_message_cb)
+        
+    def on_message_cb(self, bus, msg, data=None):
+        pass
+
+
+class VideoPipeline(Pipeline):
+    def __init__(self, app, name):
+        super(VideoPipeline, self).__init__(app, name+'_vid_pipe')
+        
+        self.appsrc = Gst.ElementFactory.make('appsrc', name+'_vidsrc')
+        self.pipe.add(self.appsrc)
+        
+        self.vidsink = Gst.ElementFactory.make('autovideosink', name+'_vidsink')
+        self.vidsink.set_property('sync', False)
+        self.pipe.add(self.vidsink)
+        
+        self.appsrc.link(self.vidsink)
+        
+        self.pipe.set_state(Gst.State.PLAYING)
+        
         
 class SnapshotPipeline(Pipeline):
     def __init__(self, app, name):
-        super(SnapshotPipeline, self).__init__(app, name + '_snap_pipe')
+        super(SnapshotPipeline, self).__init__(app, name+'_snap_pipe')
         self.file_source = ""
         self.pb = app.pb
-        
-        bus = self.pipe.get_bus()
-        bus.add_signal_watch()
-        bus.connect('message', self.on_message_cb, None)
         
         self.appsrc = Gst.ElementFactory.make('appsrc', name+'_snapsrc')
         self.pipe.add(self.appsrc)
@@ -41,7 +59,7 @@ class SnapshotPipeline(Pipeline):
         g_datetime = dtime.to_g_date_time()
         timestamp = g_datetime.format("%F_%H%M%S")
         timestamp = timestamp.replace("-", "")
-        filename = self.app.app.SNAPSHOT_PREFIX + self.name + '_' + timestamp + ".jpg"
+        filename = self.app.app.config['SNAPSHOT_PREFIX'] + self.name + '_' + timestamp + ".jpg"
         self.file_source = os.path.join(self.app.config['SNAPSHOT_PATH'], filename)
         print("Filename : %s" % filename)
         
@@ -94,9 +112,10 @@ class FilePipeline(Pipeline):
             'rec-stopped' : (GObject.SIGNAL_RUN_LAST, GObject.TYPE_NONE, (GObject.TYPE_NONE,))
         }
     
-    def __init__(self, app, name):
+    def __init__(self, dest_dir, app, name):
         super(FilePipeline, self).__init__(app, name+'_rec_pipe')
         
+        self.rec_dir = dest_dir
         self.rec_thread_id = 0
         
         self.appsrc = Gst.ElementFactory.make('appsrc', name+'_recsrc')
@@ -113,10 +132,6 @@ class FilePipeline(Pipeline):
         recp_pad.link(mp4mux.get_request_pad('video_%u'))
         mp4mux.link(self.filesink)
         
-        recbus = self.pipe.get_bus()
-        recbus.add_signal_watch()
-        recbus.connect('message', self.on_message_cb, None)
-        
     def start_recording(self):
         print("Record start - start")
         if self.rec_thread_id != 0:
@@ -129,7 +144,7 @@ class FilePipeline(Pipeline):
             timestamp = timestamp.replace("-", "")
             filename = timestamp + ".mp4"
             print("Filename : %s" % filename)
-            self.filesink.set_property('location', os.path.join(self.app.config['VIDEO_DIR'], filename))
+            self.filesink.set_property('location', os.path.join(self.rec_dir, filename))
             self.filesink.set_property('async', False)
             
             print("Rec Pipeline state : ")
@@ -138,7 +153,9 @@ class FilePipeline(Pipeline):
                 self.pipe.set_state(Gst.State.PLAYING)
                 print(datetime.now())
                 self.emit('rec-started')
-                self.start_timer(30)
+                
+                if not self.app.config['Motion']:
+                    self.start_timer(self.app.config['Timeout'])
             
         print("Record start - end")
 
@@ -186,7 +203,9 @@ class FilePipeline(Pipeline):
             print("")
             self.pipe.set_state(Gst.State.NULL)
             self.emit('rec-stopped')
-            self.start_recording()
+            
+            if not self.app.config['Motion']:
+                self.start_recording()
 
 
 class Bin(GObject.GObject):
@@ -207,7 +226,26 @@ class Bin(GObject.GObject):
         self.bin.add_pad(ghostpad)
         
     def on_message_cb(self, bus, msg):
-        pass
+        t = msg.type
+        if t == Gst.MessageType.ERROR:
+            name = msg.src.get_path_string()
+            err, debug = msg.parse_error()
+            print("%s -> Error received : from element %s : %s ." % (self.__class__.__name__, name, err.message))
+            if debug is not None:
+                print("Additional debug info:\n%s" % debug)
+              
+            self.pipe.set_state(Gst.State.NULL)
+            self.file_source = ""
+            
+        elif t == Gst.MessageType.WARNING:
+            name = msg.src.get_path_string()
+            err, debug = msg.parse_warning()
+            print("%s -> Warning received : from element %s : %s ." % (self.__class__.__name__, name, err.message))
+            if debug is not None:
+                print("Additional debug info:\n%s" % debug)
+            
+        elif t == Gst.MessageType.EOS:
+            print("%s -> End-Of-Stream received." % self.__class__.__name__)
         
 
 class SourceBin(Bin):
@@ -236,6 +274,9 @@ class VideoBin(Bin):
     def __init__(self, name):
         super(VideoBin, self).__init__(None, name+'_video_bin')
         
+        self.is_motion_start = False
+        self.motion_detect_time = 0.0
+        
         vid_q = Gst.ElementFactory.make('queue', None)
         self.add(vid_q)
         
@@ -245,8 +286,10 @@ class VideoBin(Bin):
         conv = Gst.ElementFactory.make('videoconvert', None)
         self.add(conv)
         
-        vidsink = Gst.ElementFactory.make('autovideosink', None)
-        vidsink.set_property('sync', False)
+        vidsink = Gst.ElementFactory.make('appsink', None)
+        vidsink.set_property('emit-signals', True)
+        vidsink.set_property('async', False)
+        vidsink.connect('new-sample', self.on_new_sample)
         self.add(vidsink)
         
         vid_q.link(dec)
@@ -255,6 +298,39 @@ class VideoBin(Bin):
         
         g_pad = Gst.GhostPad.new('sink', vid_q.get_static_pad('sink'))
         self.add_pad(g_pad)
+        
+    def on_new_sample(self, vidsink):
+        sample = vidsink.pull_sample()
+        buffer = sample.get_buffer()
+        caps = sample.get_caps()
+        
+        Gdk.threads_enter()
+        viewsrc = self.app.view.appsrc
+        
+        viewsrc.set_caps(caps)
+        viewsrc.push_buffer(buffer)
+        
+        if self.app.app.config['Motion']:
+            sshotsrc = self.app.snapshot.appsrc
+            state = sshotsrc.get_state(Gst.CLOCK_TIME_NONE)[1]
+            if state == Gst.State.PLAYING:
+                if not self.is_motion_start:
+                    self.is_motion_start = not self.is_motion_start
+                    self.motion_detect_time = time.time()
+                else:
+                    after_detect_time = time.time()
+                    if after_detect_time - self.motion_detect_time >= 1.5: 
+                        sshotsrc.set_caps(caps)
+                        sshotsrc.push_buffer(buffer)
+                        sshotsrc.end_of_stream()
+                    
+                        self.is_motion_start = not self.is_motion_start
+                        self.motion_detect_time = after_detect_time
+                    
+            
+        Gdk.threads_leave()
+        
+        return Gst.FlowReturn.OK
         
 
 class RecordBin(Bin):
@@ -283,7 +359,7 @@ class RecordBin(Bin):
         recsink = Gst.ElementFactory.make('appsink', name+'_recsink')
         recsink.set_property('emit-signals', True)
         recsink.set_property('async', False)
-        recsink.connect('new-sample', self.on_new_sample, self.app)
+        recsink.connect('new-sample', self.on_new_sample)
         self.add(recsink)
         
         rec_q.link(dec)
@@ -297,13 +373,13 @@ class RecordBin(Bin):
         g_pad = Gst.GhostPad.new('sink', rec_q.get_static_pad('sink'))
         self.add_pad(g_pad)
 
-    def on_new_sample(self, recsink, app):
-        appsrc = app.filerec.appsrc
+    def on_new_sample(self, recsink):
         sample = recsink.pull_sample()
         buffer = sample.get_buffer()
         caps = sample.get_caps()
         
         Gdk.threads_enter()
+        appsrc = self.app.filerec.appsrc
         state = appsrc.get_state(Gst.CLOCK_TIME_NONE)[1]
         if state == Gst.State.PLAYING:
             appsrc.set_caps(caps)
@@ -346,7 +422,7 @@ class MotionBin(Bin):
         self.add(motionsink)
         motionsink.set_property('emit-signals', True)
         motionsink.set_property('async', False)
-        motionsink.connect('new-sample', self.on_new_sample, self.app)
+        motionsink.connect('new-sample', self.on_new_sample)
         
         motion_q.link(dec)
         dec.link(vidcrop)
@@ -359,22 +435,7 @@ class MotionBin(Bin):
         g_pad = Gst.GhostPad.new('sink', motion_q.get_static_pad('sink'))
         self.add_pad(g_pad)
         
-    def on_new_sample(self, motionsink, app):
-        sample = motionsink.pull_sample()
-        buffer = sample.get_buffer()
-        caps = sample.get_caps()
-        
-        Gdk.threads_enter()
-        appsrc = app.snapshot.appsrc
-        state = appsrc.get_state(Gst.CLOCK_TIME_NONE)[1]
-        if state == Gst.State.PLAYING:
-            time.sleep(1.5)
-            appsrc.set_caps(caps)
-            appsrc.push_buffer(buffer)
-            appsrc.end_of_stream()
-            
-        Gdk.threads_leave()
-        
+    def on_new_sample(self, motionsink):
         return Gst.FlowReturn.OK
     
 
@@ -433,13 +494,15 @@ class CameraBin(Bin):
     """
     @param app: Root class -> Purun NVR
     """
-    def __init__(self, source, dest, app, name):
+    def __init__(self, source, websrv_dest, rec_dir, app, name):
         super(CameraBin, self).__init__(app, name+'_bin')
         
         def on_recording(filerec, bRecord):
             self.emit('recording', bRecord)
-            
-        self.filerec = FilePipeline(app, name)
+         
+        self.view = VideoPipeline(app, name)
+           
+        self.filerec = FilePipeline(rec_dir, app, name)
         self.filerec.connect('rec-started', on_recording, True)
         self.filerec.connect('rec-stopped', on_recording, False)
         
@@ -465,19 +528,24 @@ class CameraBin(Bin):
         rec_t_pad = tee.get_request_pad('src_%u')
         rec_t_pad.link(self.record.bin.get_static_pad('sink'))
         
-        self.websrv = WebServiceBin(dest, name)
+        self.websrv = WebServiceBin(websrv_dest, name)
         self.add(self.websrv.bin)
         
         web_t_pad = tee.get_request_pad('src_%u')
         web_t_pad.link(self.websrv.bin.get_static_pad('sink'))
         
-        if self.app.config['MOTION']:
+        if self.app.config['Motion']:
             self.motion = MotionBin(self, name)
             self.add(self.motion.bin)
             mot_t_pad = tee.get_request_pad('src_%u')
             mot_t_pad.link(self.motion.bin.get_static_pad('sink'))
 
     def start_recording(self):
-        if self.app.config['MOTION']:
+        if self.app.config['Motion']:
             self.snapshot.send_snapshot()
+            
+        self.filerec.start_recording()
+    
+    def motion_stop_recording(self):
+        self.filerec.start_timer(10)
             

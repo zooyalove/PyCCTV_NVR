@@ -77,6 +77,7 @@ class NvrManager(Gtk.VBox):
                         self.cameras[deviceID].start_recording()
                     elif s.has_field("motion_finished"):
                         print("Motion end")
+                        self.cameras[deviceID].motion_stop_recording()
     
        
     def start(self):

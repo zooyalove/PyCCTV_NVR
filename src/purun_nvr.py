@@ -33,7 +33,8 @@ class PurunNVR(object):
         self.config['VIDEO_PATH'] = os.path.join(self.APP_PATH, 'videos')
         self.config['SNAPSHOT_PATH'] = os.path.join(self.APP_PATH, 'snapshot')
         self.config['SNAPSHOT_PREFIX'] = 'sshot_'
-        self.config['MOTION'] = True
+        self.config['Motion'] = True
+        self.config['Timeout'] = 30 * 60
             
         self.pb = Pushbullet(PB_API_KEY) 
         self.setupUI()
