@@ -2,6 +2,7 @@ import os, time
 from datetime import datetime
 
 import gi
+from pydbus.bus import bus
 gi.require_version('Gst', '1.0')
 
 from gi.repository import GObject, Gst, Gdk, GLib, GstApp
@@ -194,12 +195,19 @@ class Bin(GObject.GObject):
         self.app = app
         self.bin = Gst.ElementFactory.make('bin', name)
         
+        bus = self.bin.get_bus()
+        bus.add_signal_watch()
+        bus.connect('message', self.on_message_cb)
+        
     def add(self, el):
         self.bin.add(el)
         
     def add_pad(self, ghostpad):
         ghostpad.set_active(True)
         self.bin.add_pad(ghostpad)
+        
+    def on_message_cb(self, bus, msg):
+        pass
         
 
 class SourceBin(Bin):
