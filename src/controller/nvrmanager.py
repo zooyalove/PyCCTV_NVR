@@ -26,11 +26,12 @@ class NvrManager(Gtk.VBox):
     
         if camera.get_source() is not None:
             self.player.add(camera.get_bin().bin)
+            
         
     def player_configure(self):    
-        bus = self.player.get_bus()
-        bus.add_signal_watch()
-        bus.enable_sync_message_emission()
+        self.bus = self.player.get_bus()
+        self.bus.add_signal_watch()
+        self.bus.enable_sync_message_emission()
         
         def sync_msg_handler(bus, msg):
             if msg.get_structure().get_name() == "prepare-window-handle":
@@ -39,7 +40,8 @@ class NvrManager(Gtk.VBox):
                 print("Sink name : %s" % sink_name)
                 self.cameras[sink_name].video_widget.set_sink(sink)
                 
-        bus.connect('sync-message::element', sync_msg_handler)
+        self.bus.connect('sync-message::element', sync_msg_handler)
+
         
     def on_message(self, bus, msg):
         t = msg.type
@@ -84,4 +86,9 @@ class NvrManager(Gtk.VBox):
         self.player.set_state(Gst.State.PLAYING)
         
     def stop(self):
+        for cam in self.cameras:
+            self.cameras[cam].stop()
+        
+        self.bus.unref()
         self.player.set_state(Gst.State.NULL)
+        self.player.unref()

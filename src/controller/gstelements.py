@@ -12,10 +12,13 @@ class Pipeline(GObject.GObject):
         self.app = app
         self.pipe = Gst.ElementFactory.make('pipeline', name)
 
-        bus = self.pipe.get_bus()
-        bus.add_signal_watch()
-        bus.connect('message', self.on_message_cb)
-        
+        self.bus = self.pipe.get_bus()
+        self.bus.add_signal_watch()
+        self.bus.connect('message', self.on_message_cb)
+    
+    def add(self, el):
+        self.pipe.add(el)
+            
     def on_message_cb(self, bus, msg, data=None):
         pass
 
@@ -25,11 +28,11 @@ class VideoPipeline(Pipeline):
         super(VideoPipeline, self).__init__(app, name+'_vid_pipe')
         
         self.appsrc = Gst.ElementFactory.make('appsrc', name+'_vidsrc')
-        self.pipe.add(self.appsrc)
+        self.add(self.appsrc)
         
         self.vidsink = Gst.ElementFactory.make('autovideosink', name+'_vidsink')
         self.vidsink.set_property('sync', False)
-        self.pipe.add(self.vidsink)
+        self.add(self.vidsink)
         
         self.appsrc.link(self.vidsink)
         
@@ -43,13 +46,13 @@ class SnapshotPipeline(Pipeline):
         self.pb = app.pb
         
         self.appsrc = Gst.ElementFactory.make('appsrc', name+'_snapsrc')
-        self.pipe.add(self.appsrc)
+        self.add(self.appsrc)
         
         jpegenc = Gst.ElementFactory.make('jpegenc', name+'_jpegenc')
-        self.pipe.add(jpegenc)
+        self.add(jpegenc)
         
         self.filesink = Gst.ElementFactory.make('filesink', name+'_jpgfilesink')
-        self.pipe.add(self.filesink)
+        self.add(self.filesink)
         
         self.appsrc.link(jpegenc)
         jpegenc.link(self.filesink)
@@ -119,13 +122,13 @@ class FilePipeline(Pipeline):
         self.rec_thread_id = 0
         
         self.appsrc = Gst.ElementFactory.make('appsrc', name+'_recsrc')
-        self.pipe.add(self.appsrc)
+        self.add(self.appsrc)
         self.rec_parse = Gst.ElementFactory.make('h264parse', name+'_rec_parse')
-        self.pipe.add(self.rec_parse)
+        self.add(self.rec_parse)
         mp4mux = Gst.ElementFactory.make('mp4mux', name+'_mp4mux')
-        self.pipe.add(mp4mux)
+        self.add(mp4mux)
         self.filesink = Gst.ElementFactory.make('filesink', name+'_recfilesink')
-        self.pipe.add(self.filesink)
+        self.add(self.filesink)
         
         self.appsrc.link(self.rec_parse)
         recp_pad = self.rec_parse.get_static_pad('src')
@@ -549,3 +552,13 @@ class CameraBin(Bin):
     def motion_stop_recording(self):
         self.filerec.start_timer(10)
             
+    def stop(self):
+        if self.filerec.pipe.get_state(Gst.CLOCK_TIME_NONE)[1] == Gst.State.PLAYING:
+            self.filerec.stop_recording()
+            
+        for pp in (self.filerec, self.view, self.snapshot):
+            pp.bus.unref()
+            pp.pipe.set_state(Gst.State.NULL)
+            pp.pipe.unref()
+            pp.unref()
+        

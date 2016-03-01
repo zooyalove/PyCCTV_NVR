@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-import os
+import os, threading, time
 
 import gi
 gi.require_version('Gst', '1.0')
@@ -15,6 +15,60 @@ from src.controller.camerawidget import CameraWidget
 
 PB_API_KEY = 'o.cJzinoZ3SdlW7JxYeDm7tbIrueQAW5aK'
 
+class NvrController(threading.Thread):
+    def __init__(self, mntdir):
+        self.bTerminate = False
+        self.sleepTime = 30 #minute
+        
+        self.mntdir = mntdir
+        
+        self.panel = Gtk.HBox()
+        
+        self.panel.pack_start(Gtk.Label(), True, True, 0)
+        
+        image = Gtk.Image()
+        image.set_from_stock(Gtk.STOCK_QUIT, Gtk.IconSize.BUTTON)
+        quitBtn = Gtk.Button()
+        quitBtn.set_image(image)
+        quitBtn.set_margin_right(10)
+        quitBtn.set_tooltip_text('프로그램 끝내기')
+        quitBtn.connect('clicked', self.quit)
+        self.panel.pack_end(quitBtn, False, False, 0)
+        
+        boxHdd = Gtk.VBox()
+        
+        self.lvlHDD = Gtk.LevelBar()
+        self.lvlHDD.set_min_value(0.0)
+        self.lvlHDD.set_max_value(1.0)
+        self.lvlHDD.set_value(0.1)
+        self.lvlHDD.set_size_request(250, -1)
+        self.lvlHDD.set_margin_left(10)
+        self.lvlHDD.set_margin_right(10)
+        boxHdd.pack_start(self.lvlHDD, False, False, 5)
+        
+        self.lblHdd_Percent = Gtk.Label()
+        self.lblHdd_Percent.set_text("Usage / Total - 0%")
+        boxHdd.pack_start(self.lblHdd_Percent, True, False, 0)
+        
+        self.panel.pack_end(boxHdd, False, False, 0)
+        
+    def run(self):
+        while not self.bTerminate:
+            self.calculate_diskusage()
+            time.sleep(self.sleepTime * 60)
+        
+    def calculate_diskusage(self):
+        st = os.statvfs(self.mntdir)
+        total_space = st.f_blocks * st.f_frsize
+        used_space = (st.f_blocks - st.f_bfree) * st.f_frsize
+        
+        f = round(used_space/total_space, 2)
+        percentage = int(f * 100)
+        
+        self.lvlHDD.set_value(f)
+        self.lblHdd_Percent.set_text("Usage {0} / Total {1} - {2}%".format(percentage))
+    
+        
 """
     - PurunNVR 클래스의 기능 -
         > 화면 보이기
@@ -52,41 +106,14 @@ class PurunNVR(object):
         self.win.connect('destroy', self.quit)
         
         vbox = Gtk.VBox()
+        self.win.add(vbox)
         
         self.manager = NvrManager(self)
         vbox.add(self.manager)
-        self.win.add(vbox)
-        
-        hbox = Gtk.HBox()
-        vbox.pack_end(hbox, False, False, 10)
-        
-        hbox.pack_start(Gtk.Label(), True, True, 0)
-        
-        image = Gtk.Image()
-        image.set_from_stock(Gtk.STOCK_QUIT, Gtk.IconSize.BUTTON)
-        quitBtn = Gtk.Button()
-        quitBtn.set_image(image)
-        quitBtn.set_margin_right(10)
-        quitBtn.set_tooltip_text('프로그램 끝내기')
-        quitBtn.connect('clicked', self.quit)
-        hbox.pack_end(quitBtn, False, False, 0)
-        
-        boxHdd = Gtk.VBox()
-        
-        self.lvlHDD = Gtk.LevelBar()
-        self.lvlHDD.set_min_value(0.0)
-        self.lvlHDD.set_max_value(1.0)
-        self.lvlHDD.set_value(0.5)
-        self.lvlHDD.set_size_request(250, -1)
-        self.lvlHDD.set_margin_left(10)
-        self.lvlHDD.set_margin_right(10)
-        boxHdd.pack_start(self.lvlHDD, False, False, 5)
-        
-        self.lblHdd_Percent = Gtk.Label()
-        self.lblHdd_Percent.set_text("Usage / Total - 50%")
-        boxHdd.pack_start(self.lblHdd_Percent, True, False, 0)
-        
-        hbox.pack_end(boxHdd, False, False, 0)
+
+        self.controller = NvrController()
+                
+        vbox.pack_end(self.controller.panel, False, False, 10)
         
     def start(self):
         self.win.show_all()
@@ -95,6 +122,7 @@ class PurunNVR(object):
                 
     def quit(self, widget):
         self.manager.stop()
+        self.controller.bTerminate = True
         Gtk.main_quit()
         
                 
