@@ -86,8 +86,9 @@ class NvrManager(Gtk.VBox):
         self.player.set_state(Gst.State.PLAYING)
         
     def stop(self):
-        for cam in self.cameras:
-            self.cameras[cam].stop()
+        for cam in self.cameras.keys():
+            if self.cameras[cam].get_bin() is not None:
+                self.cameras[cam].get_bin().stop()
         
         self.bus.unref()
         self.player.set_state(Gst.State.NULL)

@@ -112,8 +112,8 @@ class SnapshotPipeline(Pipeline):
             
 class FilePipeline(Pipeline):
     __gsignals__ = {
-            'rec-started' : (GObject.SIGNAL_RUN_LAST, GObject.TYPE_NONE, (GObject.TYPE_NONE,)),
-            'rec-stopped' : (GObject.SIGNAL_RUN_LAST, GObject.TYPE_NONE, (GObject.TYPE_NONE,))
+            'rec-started' : (GObject.SIGNAL_RUN_LAST, GObject.TYPE_NONE, (GObject.TYPE_BOOLEAN,)),
+            'rec-stopped' : (GObject.SIGNAL_RUN_LAST, GObject.TYPE_NONE, (GObject.TYPE_BOOLEAN,))
         }
     
     def __init__(self, dest_dir, app, name):
@@ -156,7 +156,7 @@ class FilePipeline(Pipeline):
             if self.pipe.get_state(Gst.CLOCK_TIME_NONE)[1] == Gst.State.NULL: 
                 self.pipe.set_state(Gst.State.PLAYING)
                 print(datetime.now())
-                self.emit('rec-started')
+                self.emit('rec-started', True)
                 
                 if not self.app.config['Motion']:
                     self.start_timer(self.app.config['Timeout'])
@@ -192,7 +192,7 @@ class FilePipeline(Pipeline):
             GLib.Source.remove(self.rec_thread_id)
             self.rec_thread_id = 0
             self.pipe.set_state(Gst.State.NULL)
-            self.emit('rec-stopped')
+            self.emit('rec-stopped', False)
             
         elif t == Gst.MessageType.WARNING:
             name = msg.src.get_path_string()
@@ -206,10 +206,18 @@ class FilePipeline(Pipeline):
             print(datetime.now())
             print("")
             self.pipe.set_state(Gst.State.NULL)
-            self.emit('rec-stopped')
+            self.emit('rec-stopped', False)
             
             if not self.app.config['Motion']:
                 self.start_recording()
+
+    def do_rec_started(self, bStart):
+        print("Recording started")
+        
+    def do_rec_stopped(self, bStop):
+        print("Recording stopped")
+
+GObject.type_register(FilePipeline)
 
 
 class Bin(GObject.GObject):
@@ -507,8 +515,8 @@ class CameraBin(Bin):
         self.view = VideoPipeline(app, name)
            
         self.filerec = FilePipeline(rec_dir, app, name)
-        self.filerec.connect('rec-started', on_recording, True)
-        self.filerec.connect('rec-stopped', on_recording, False)
+        self.filerec.connect('rec-started', on_recording)
+        self.filerec.connect('rec-stopped', on_recording)
         
         self.snapshot = SnapshotPipeline(app, name)
         
@@ -562,4 +570,5 @@ class CameraBin(Bin):
             pp.pipe.set_state(Gst.State.NULL)
             pp.pipe.unref()
             pp.unref()
-        
+
+GObject.type_register(CameraBin)

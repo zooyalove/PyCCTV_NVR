@@ -17,25 +17,13 @@ PB_API_KEY = 'o.cJzinoZ3SdlW7JxYeDm7tbIrueQAW5aK'
 
 class NvrController(threading.Thread):
     def __init__(self, mntdir):
-        self.bTerminate = False
+        super(NvrController, self).__init__()
+        
         self.sleepTime = 30 #minute
         
         self.mntdir = mntdir
         
-        self.panel = Gtk.HBox()
-        
-        self.panel.pack_start(Gtk.Label(), True, True, 0)
-        
-        image = Gtk.Image()
-        image.set_from_stock(Gtk.STOCK_QUIT, Gtk.IconSize.BUTTON)
-        quitBtn = Gtk.Button()
-        quitBtn.set_image(image)
-        quitBtn.set_margin_right(10)
-        quitBtn.set_tooltip_text('프로그램 끝내기')
-        quitBtn.connect('clicked', self.quit)
-        self.panel.pack_end(quitBtn, False, False, 0)
-        
-        boxHdd = Gtk.VBox()
+        self.panel = Gtk.VBox()
         
         self.lvlHDD = Gtk.LevelBar()
         self.lvlHDD.set_min_value(0.0)
@@ -44,19 +32,24 @@ class NvrController(threading.Thread):
         self.lvlHDD.set_size_request(250, -1)
         self.lvlHDD.set_margin_left(10)
         self.lvlHDD.set_margin_right(10)
-        boxHdd.pack_start(self.lvlHDD, False, False, 5)
+        self.panel.pack_start(self.lvlHDD, False, False, 5)
         
         self.lblHdd_Percent = Gtk.Label()
         self.lblHdd_Percent.set_text("Usage / Total - 0%")
-        boxHdd.pack_start(self.lblHdd_Percent, True, False, 0)
+        self.panel.pack_start(self.lblHdd_Percent, True, False, 0)
         
-        self.panel.pack_end(boxHdd, False, False, 0)
         
     def run(self):
-        while not self.bTerminate:
+        while True:
             self.calculate_diskusage()
             time.sleep(self.sleepTime * 60)
-        
+    
+    def stop(self):
+        self.bTerminate = not self.bTerminate
+
+    def get_panel(self):
+        return self.panel
+    
     def calculate_diskusage(self):
         st = os.statvfs(self.mntdir)
         total_space = st.f_blocks * st.f_frsize
@@ -66,20 +59,17 @@ class NvrController(threading.Thread):
         percentage = int(f * 100)
         
         self.lvlHDD.set_value(f)
-        self.lblHdd_Percent.set_text("Usage {0} / Total {1} - {2}%".format(percentage))
+        self.lblHdd_Percent.set_text("Usage {0} / Total {1} - {2}%".format(self.calculate_disksize(used_space), self.calculate_disksize(total_space), percentage))
     
-    def calculate_filesize(self, fsize):
-        fsize_format = ('Byte','KB', 'MB', 'GB', 'TB')
+    def calculate_disksize(self, dsize):
+        dsize_format = ('Byte','KB', 'MB', 'GB', 'TB')
         count = 0
         
-        while True:
-            if fsize >= 1024:
-                fsize = round(float(fsize) / 1024, 1)
-                count += 1
-            else:
-                break
+        while dsize >= 1024:
+            dsize = round(float(dsize) / 1024, 1)
+            count += 1
         
-        return
+        return '%0.1f%s' % (dsize, dsize_format[count])
     
         
 """
@@ -124,18 +114,32 @@ class PurunNVR(object):
         self.manager = NvrManager(self)
         vbox.add(self.manager)
 
-        self.controller = NvrController()
-                
-        vbox.pack_end(self.controller.panel, False, False, 10)
+        hbox = Gtk.HBox()
+        vbox.pack_end(hbox, False, False, 10)
+        
+        hbox.pack_start(Gtk.Label(), True, True, 0)
+        
+        image = Gtk.Image()
+        image.set_from_stock(Gtk.STOCK_QUIT, Gtk.IconSize.BUTTON)
+        quitBtn = Gtk.Button()
+        quitBtn.set_image(image)
+        quitBtn.set_margin_right(10)
+        quitBtn.set_tooltip_text('프로그램 끝내기')
+        quitBtn.connect('clicked', self.quit)
+        hbox.pack_end(quitBtn, False, False, 0)
+        
+        self.controller = NvrController('/home/zia')
+        self.controller.setDaemon(True)
+        hbox.pack_end(self.controller.get_panel(), False, False, 0)
         
     def start(self):
         self.win.show_all()
         self.manager.start()
+        self.controller.start()
         Gtk.main()
                 
     def quit(self, widget):
         self.manager.stop()
-        self.controller.bTerminate = True
         Gtk.main_quit()
         
                 

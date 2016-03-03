@@ -15,7 +15,7 @@ class CameraWidget(Gtk.VBox):
     
     RECORD_IMAGE = Gtk.STOCK_MEDIA_RECORD
     
-    def __init__(self, app, name, source={'ip':'127.0.0.1', 'port':6001}, dest={'ip':'127.0.0.1', 'port':5001}, size=(640, 360), save_timeout=60):
+    def __init__(self, app, name, source={'ip':'127.0.0.1', 'port':6001}, dest={'ip':'127.0.0.1', 'port':5001}, size=(640, 360)):
         super(CameraWidget, self).__init__()
 
         self.app = app
@@ -26,7 +26,6 @@ class CameraWidget(Gtk.VBox):
         self.set_source(source)
         self.__set_camera_name(name)
         self.set_size(size)
-        self.set_save_timeout(save_timeout) # save_timeout => minute
         self._setupUI()
 
     def _video_dir_config(self, name):
@@ -146,11 +145,5 @@ class CameraWidget(Gtk.VBox):
         self.__source = source
         if source is not None:
             self.__createCameraBin(source)
-        
-    def set_save_timeout(self, timeout):
-        self.__save_timeout = timeout
-        
-    def get_save_timeout(self):
-        return self.__save_timeout
         
         
