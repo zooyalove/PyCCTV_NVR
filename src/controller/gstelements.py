@@ -58,6 +58,7 @@ class SnapshotPipeline(Pipeline):
         jpegenc.link(self.filesink)
         
     def send_snapshot(self):
+        time.sleep(1.5) # 얼굴이나 형체등을 알기위해서 잠시 쉬었다가 파이프라인 시작
         dtime = Gst.DateTime.new_now_local_time()
         g_datetime = dtime.to_g_date_time()
         timestamp = g_datetime.format("%F_%H%M%S")

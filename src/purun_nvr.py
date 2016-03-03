@@ -68,6 +68,19 @@ class NvrController(threading.Thread):
         self.lvlHDD.set_value(f)
         self.lblHdd_Percent.set_text("Usage {0} / Total {1} - {2}%".format(percentage))
     
+    def calculate_filesize(self, fsize):
+        fsize_format = ('Byte','KB', 'MB', 'GB', 'TB')
+        count = 0
+        
+        while True:
+            if fsize >= 1024:
+                fsize = round(float(fsize) / 1024, 1)
+                count += 1
+            else:
+                break
+        
+        return
+    
         
 """
     - PurunNVR 클래스의 기능 -
