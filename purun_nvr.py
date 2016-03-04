@@ -10,8 +10,8 @@ from gi.repository import Gst, GObject, Gtk, Gdk
 
 from pushbullet import Pushbullet
 
-from src.controller.nvrmanager import NvrManager
-from src.controller.camerawidget import CameraWidget 
+from nvrmanager import NvrManager
+from camerawidget import CameraWidget 
 
 PB_API_KEY = 'o.cJzinoZ3SdlW7JxYeDm7tbIrueQAW5aK'
 

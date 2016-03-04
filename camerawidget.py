@@ -5,8 +5,8 @@ gi.require_version('Gtk', '3.0')
 
 from gi.repository import Gtk, Gdk, Pango
 
-from src.controller.gstelements import CameraBin
-from src.controller.videowidget import VideoWidget
+from gstelements import CameraBin
+from videowidget import VideoWidget
 
 class CameraWidget(Gtk.VBox):
     IS_LINUX = sys.platform.startswith("linux")
