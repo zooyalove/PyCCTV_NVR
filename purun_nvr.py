@@ -44,9 +44,6 @@ class NvrController(threading.Thread):
             self.calculate_diskusage()
             time.sleep(self.sleepTime * 60)
     
-    def stop(self):
-        self.bTerminate = not self.bTerminate
-
     def get_panel(self):
         return self.panel
     
@@ -63,9 +60,7 @@ class NvrController(threading.Thread):
             if ret == 0:
                 raise ctypes.WinError()
             used = total.value - free.value
-            print(used)
             total = total.value
-            print(total)
         
         f = round(used/total, 3)
         percentage = "%0.1f" % (f * 100)
@@ -97,10 +92,15 @@ class PurunNVR(object):
     APP_PATH = os.path.abspath(os.path.dirname(__file__))
     RESOURCE_PATH = os.path.join(APP_PATH, 'resources')
     
-    def __init__(self):
+    def __init__(self, mntdir=None):
         self.config = {}
-        self.config['VIDEO_PATH'] = os.path.join(self.APP_PATH, 'videos')
-        self.config['SNAPSHOT_PATH'] = os.path.join(self.APP_PATH, 'snapshot')
+        if mntdir is None:
+            self.config['VIDEO_PATH'] = os.path.join(self.APP_PATH, 'videos')
+            self.config['SNAPSHOT_PATH'] = os.path.join(self.APP_PATH, 'snapshot')
+        else:
+            self.config['VIDEO_PATH'] = os.path.join(mntdir, 'videos')
+            self.config['SNAPSHOT_PATH'] = os.path.join(mntdir, 'snapshot')
+        
         self.config['SNAPSHOT_PREFIX'] = 'sshot_'
         self.config['Motion'] = True
         self.config['Timeout'] = 30 * 60

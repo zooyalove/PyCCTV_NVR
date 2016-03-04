@@ -22,21 +22,11 @@ class CameraWidget(Gtk.VBox):
         self.is_recording = False
         self.__camera_bin = None
         
-        self._video_dir_config(name)
-        self.set_source(source)
+        self.set_source(source, dest)
         self.__set_camera_name(name)
         self.set_size(size)
         self._setupUI()
 
-    def _video_dir_config(self, name):
-        name = name.upper()
-        dir_name = os.path.join(self.app.config['VIDEO_PATH'], name)
-        if not os.path.exists(dir_name):
-            pass
-            #os.mkdir(dir_name)
-            
-        self.VIDEO_DIR = dir_name
-                
     def _setupUI(self):
         
         self._overlay = Gtk.Overlay()
@@ -93,7 +83,7 @@ class CameraWidget(Gtk.VBox):
         if self.__camera_bin is not None:
             self.__camera_bin = None
         
-        self.__camera_bin = CameraBin(source, dest, self.VIDEO_DIR, self.app, self.get_camera_name().lower())
+        self.__camera_bin = CameraBin(source, dest, self.app, self.get_camera_name().lower())
         self.__camera_bin.connect('recording', self._on_video_recording)
         
     
@@ -110,6 +100,7 @@ class CameraWidget(Gtk.VBox):
                     time.sleep(1)
             
             t = threading.Thread(target=record_blink)
+            t.setDaemon(True)
             t.start()
             
             self._rec_text.set_text(self.RECORDING)
@@ -141,9 +132,9 @@ class CameraWidget(Gtk.VBox):
     def get_source(self):
         return self.__source
         
-    def set_source(self, source):
+    def set_source(self, source, dest):
         self.__source = source
         if source is not None:
-            self.__createCameraBin(source)
+            self.__createCameraBin(source, dest)
         
         

@@ -43,6 +43,7 @@ class SnapshotPipeline(Pipeline):
     def __init__(self, app, name):
         super(SnapshotPipeline, self).__init__(app, name+'_snap_pipe')
         self.file_source = ""
+        self.name = name
         self.pb = app.pb
         
         self.appsrc = Gst.ElementFactory.make('appsrc', name+'_snapsrc')
@@ -116,10 +117,10 @@ class FilePipeline(Pipeline):
             'rec-stopped' : (GObject.SIGNAL_RUN_LAST, GObject.TYPE_NONE, (GObject.TYPE_BOOLEAN,))
         }
     
-    def __init__(self, dest_dir, app, name):
+    def __init__(self, app, name):
         super(FilePipeline, self).__init__(app, name+'_rec_pipe')
         
-        self.rec_dir = dest_dir
+        self.name = name        
         self.rec_thread_id = 0
         
         self.appsrc = Gst.ElementFactory.make('appsrc', name+'_recsrc')
@@ -146,9 +147,9 @@ class FilePipeline(Pipeline):
             g_datetime = dtime.to_g_date_time()
             timestamp = g_datetime.format("%F_%H%M%S")
             timestamp = timestamp.replace("-", "")
-            filename = timestamp + ".mp4"
+            filename = self.name + '_' + timestamp + ".mp4"
             print("Filename : %s" % filename)
-            self.filesink.set_property('location', os.path.join(self.rec_dir, filename))
+            self.filesink.set_property('location', os.path.join(self.app.config['VIDEO_PATH'], filename))
             self.filesink.set_property('async', False)
             
             print("Rec Pipeline state : ")
@@ -506,7 +507,7 @@ class CameraBin(Bin):
     """
     @param app: Root class -> Purun NVR
     """
-    def __init__(self, source, websrv_dest, rec_dir, app, name):
+    def __init__(self, source, websrv_dest, app, name):
         super(CameraBin, self).__init__(app, name+'_bin')
         
         def on_recording(filerec, bRecord):
@@ -514,7 +515,7 @@ class CameraBin(Bin):
          
         self.view = VideoPipeline(app, name)
            
-        self.filerec = FilePipeline(rec_dir, app, name)
+        self.filerec = FilePipeline(app, name)
         self.filerec.connect('rec-started', on_recording)
         self.filerec.connect('rec-stopped', on_recording)
         
