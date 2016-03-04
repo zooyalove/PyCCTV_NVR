@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-import os, threading, time
+import sys, os, threading, time
 
 import gi
 gi.require_version('Gst', '1.0')
@@ -51,15 +51,27 @@ class NvrController(threading.Thread):
         return self.panel
     
     def calculate_diskusage(self):
-        st = os.statvfs(self.mntdir)
-        total_space = st.f_blocks * st.f_frsize
-        used_space = (st.f_blocks - st.f_bfree) * st.f_frsize
+        if hasattr(os, 'statvfs'):
+            st = os.statvfs(self.mntdir)
+            total = st.f_blocks * st.f_frsize
+            used = (st.f_blocks - st.f_bfree) * st.f_frsize
+        else:
+            import ctypes
+            _, total, free = ctypes.c_ulonglong(), ctypes.c_ulonglong(), ctypes.c_ulonglong()
+            fun = ctypes.windll.kernel32.GetDiskFreeSpaceExW
+            ret = fun(self.mntdir, ctypes.byref(_), ctypes.byref(total), ctypes.byref(free))
+            if ret == 0:
+                raise ctypes.WinError()
+            used = total.value - free.value
+            print(used)
+            total = total.value
+            print(total)
         
-        f = round(used_space/total_space, 2)
-        percentage = int(f * 100)
+        f = round(used/total, 3)
+        percentage = "%0.1f" % (f * 100)
         
         self.lvlHDD.set_value(f)
-        self.lblHdd_Percent.set_text("Usage {0} / Total {1} - {2}%".format(self.calculate_disksize(used_space), self.calculate_disksize(total_space), percentage))
+        self.lblHdd_Percent.set_text("Usage {0} / Total {1} - {2}%".format(self.calculate_disksize(used), self.calculate_disksize(total), percentage))
     
     def calculate_disksize(self, dsize):
         dsize_format = ('Byte','KB', 'MB', 'GB', 'TB')
@@ -128,7 +140,11 @@ class PurunNVR(object):
         quitBtn.connect('clicked', self.quit)
         hbox.pack_end(quitBtn, False, False, 0)
         
-        self.controller = NvrController('/home/zia')
+        if os.name == 'nt':
+            self.controller = NvrController('D:\\')
+        else:
+            self.controller = NvrController('/home/zia')
+
         self.controller.setDaemon(True)
         hbox.pack_end(self.controller.get_panel(), False, False, 0)
         
