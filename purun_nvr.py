@@ -28,7 +28,7 @@ class NvrController(threading.Thread):
         self.lvlHDD = Gtk.LevelBar()
         self.lvlHDD.set_min_value(0.0)
         self.lvlHDD.set_max_value(1.0)
-        self.lvlHDD.set_value(0.1)
+        self.lvlHDD.set_value(0.0)
         self.lvlHDD.set_size_request(250, -1)
         self.lvlHDD.set_margin_left(10)
         self.lvlHDD.set_margin_right(10)
