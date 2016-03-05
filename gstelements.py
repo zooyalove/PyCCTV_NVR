@@ -18,10 +18,46 @@ class Pipeline(GObject.GObject):
     
     def add(self, el):
         self.pipe.add(el)
-            
+
+    def play(self):
+        self.pipe.set_state(Gst.State.PLAYING)
+        
+    def stop(self):
+        self.pipe.set_state(Gst.State.NULL)
+        
+    def get_state(self):
+        return self.pipe.get_state(Gst.CLOCK_TIME_NONE)[1]
+    
+    def unref(self):
+        self.bus.unref()
+        self.pipe.unref()
+        
+        return GObject.GObject.unref(self)
+
     def on_message_cb(self, bus, msg, data=None):
         pass
 
+
+class AlertPipeline(Pipeline):
+    def __init__(self, app, name):
+        super(AlertPipeline, self).__init__(app, name+'_snd_pipe')
+        
+        sndsrc = Gst.ElementFactory.make('filesrc', None)
+        sndsrc.set_property('location', os.path.join(self.app.RESOURCE_PATH, 'alert.wav'))
+        self.add(sndsrc)
+        
+        wavparse = Gst.ElementFactory.make('wavparse', None)
+        self.add(wavparse)
+        
+        aconv = Gst.ElementFactory.make('audioconvert', None)
+        self.add(aconv)
+        
+        asink = Gst.ElementFactory.make('autoaudiosink', None)
+        self.add(asink)
+        
+        sndsrc.link(wavparse)
+        wavparse.link(aconv)
+        aconv.link(asink)
 
 class VideoPipeline(Pipeline):
     def __init__(self, app, name):
@@ -36,7 +72,7 @@ class VideoPipeline(Pipeline):
         
         self.appsrc.link(self.vidsink)
         
-        self.pipe.set_state(Gst.State.PLAYING)
+        self.play()
         
         
 class SnapshotPipeline(Pipeline):
@@ -64,14 +100,14 @@ class SnapshotPipeline(Pipeline):
         g_datetime = dtime.to_g_date_time()
         timestamp = g_datetime.format("%F_%H%M%S")
         timestamp = timestamp.replace("-", "")
-        filename = self.app.app.config['SNAPSHOT_PREFIX'] + self.name + '_' + timestamp + ".jpg"
+        filename = self.app.config['SNAPSHOT_PREFIX'] + self.name + '_' + timestamp + ".jpg"
         self.file_source = os.path.join(self.app.config['SNAPSHOT_PATH'], filename)
         print("Filename : %s" % filename)
         
         self.filesink.set_property('location', self.file_source)
         self.filesink.set_property('async', False)
         
-        self.pipe.set_state(Gst.State.PLAYING)
+        self.play()
         
         
     def on_message_cb(self, bus, msg, data):
@@ -83,7 +119,7 @@ class SnapshotPipeline(Pipeline):
             if debug is not None:
                 print("Additional debug info:\n%s" % debug)
               
-            self.pipe.set_state(Gst.State.NULL)
+            self.stop()
             self.file_source = ""
             
         elif t == Gst.MessageType.WARNING:
@@ -97,7 +133,7 @@ class SnapshotPipeline(Pipeline):
             print("Snapshot End-Of-Stream received")
             print(datetime.now())
             print("")
-            self.pipe.set_state(Gst.State.NULL)
+            self.stop()
             
             Gdk.threads_enter()
             if self.file_source != "":
@@ -153,9 +189,9 @@ class FilePipeline(Pipeline):
             self.filesink.set_property('async', False)
             
             print("Rec Pipeline state : ")
-            print(self.pipe.get_state(Gst.CLOCK_TIME_NONE)[1])
-            if self.pipe.get_state(Gst.CLOCK_TIME_NONE)[1] == Gst.State.NULL: 
-                self.pipe.set_state(Gst.State.PLAYING)
+            print(self.get_state())
+            if self.get_state() == Gst.State.NULL: 
+                self.play()
                 print(datetime.now())
                 self.emit('rec-started', True)
                 
@@ -192,7 +228,7 @@ class FilePipeline(Pipeline):
               
             GLib.Source.remove(self.rec_thread_id)
             self.rec_thread_id = 0
-            self.pipe.set_state(Gst.State.NULL)
+            self.stop()
             self.emit('rec-stopped', False)
             
         elif t == Gst.MessageType.WARNING:
@@ -206,7 +242,7 @@ class FilePipeline(Pipeline):
             print("Record End-Of-Stream received")
             print(datetime.now())
             print("")
-            self.pipe.set_state(Gst.State.NULL)
+            self.stop()
             self.emit('rec-stopped', False)
             
             if not self.app.config['Motion']:
@@ -521,6 +557,8 @@ class CameraBin(Bin):
         
         self.snapshot = SnapshotPipeline(app, name)
         
+        self.alertsnd = AlertPipeline(app, name) 
+        
         self.src = SourceBin(source, self, name)
         self.add(self.src.bin)
         
@@ -563,13 +601,11 @@ class CameraBin(Bin):
         self.filerec.start_timer(10)
             
     def stop(self):
-        if self.filerec.pipe.get_state(Gst.CLOCK_TIME_NONE)[1] == Gst.State.PLAYING:
+        if self.filerec.get_state() == Gst.State.PLAYING:
             self.filerec.stop_recording()
             
-        for pp in (self.filerec, self.view, self.snapshot):
-            pp.bus.unref()
-            pp.pipe.set_state(Gst.State.NULL)
-            pp.pipe.unref()
+        for pp in (self.filerec, self.view, self.snapshot, self.alertsnd):
+            pp.stop()
             pp.unref()
 
 GObject.type_register(CameraBin)
