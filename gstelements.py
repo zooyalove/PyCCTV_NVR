@@ -594,6 +594,7 @@ class CameraBin(Bin):
     def start_recording(self):
         if self.app.config['Motion']:
             self.snapshot.send_snapshot()
+            self.alertsnd.play()
             
         self.filerec.start_recording()
     

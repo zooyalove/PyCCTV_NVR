@@ -108,7 +108,7 @@ class PurunNVR(object):
         self.pb = Pushbullet(PB_API_KEY) 
         self.setupUI()
 
-        #cam1 = CameraWidget("CAM1", source={'ip':'songsul.iptime.org', 'port':5001})
+        #cam1 = CameraWidget("CAM1", source={'ip':'192.168.0.81', 'port':6001}, dest={'ip':'192.168.0.79', 'port':5001})
         #self.manager.add_camera(cam1)
         cam1 = CameraWidget(self, "CAM1", source=None, dest=None)
         self.manager.add_camera(cam1)
