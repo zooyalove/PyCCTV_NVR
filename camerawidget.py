@@ -27,6 +27,19 @@ class CameraWidget(Gtk.VBox):
         self.set_size(size)
         self._setupUI()
 
+    def on_btn_release(self, widget, evt):
+        if evt.type == Gdk.EventType.BUTTON_RELEASE and evt.button == 3:
+            m = Gtk.Menu()
+            
+            i = Gtk.MenuItem('Hello')
+            m.add(i)
+            m.show_all()
+            
+            m.attach_to_widget(widget)
+            m.popup(None, None, None, None, evt.button, evt.time)
+            
+            return True
+        
     def _setupUI(self):
         
         self._overlay = Gtk.Overlay()
@@ -38,12 +51,17 @@ class CameraWidget(Gtk.VBox):
         
         self._overlay.add(self.video_widget)
 
-        if self.__source is None:
+        evtbox = Gtk.EventBox()
+        evtbox.connect('button-release-event', self.on_btn_release)
+        evtbox.set_events(Gdk.EventMask.BUTTON_RELEASE_MASK)
+        self._overlay.add_overlay(evtbox)
+
+        """if self.__source is None:
             self.logo = Gtk.Image()
             self.logo.set_from_file(os.path.join(self.app.RESOURCE_PATH, 'purun_nvr.png'))
             self.logo.set_halign(Gtk.Align.CENTER)
             self.logo.set_valign(Gtk.Align.CENTER)
-            self._overlay.add_overlay(self.logo)
+            self._overlay.add_overlay(self.logo)"""
         
         #bottom part config
         #Device name setting
