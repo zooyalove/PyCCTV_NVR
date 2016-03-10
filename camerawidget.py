@@ -27,19 +27,6 @@ class CameraWidget(Gtk.VBox):
         self.set_size(size)
         self._setupUI()
 
-    def on_btn_release(self, widget, evt):
-        if evt.type == Gdk.EventType.BUTTON_RELEASE and evt.button == 3:
-            m = Gtk.Menu()
-            
-            i = Gtk.MenuItem('Hello')
-            m.add(i)
-            m.show_all()
-            
-            m.attach_to_widget(widget)
-            m.popup(None, None, None, None, evt.button, evt.time)
-            
-            return True
-        
     def _setupUI(self):
         
         self._overlay = Gtk.Overlay()
@@ -51,10 +38,9 @@ class CameraWidget(Gtk.VBox):
         
         self._overlay.add(self.video_widget)
 
-        evtbox = Gtk.EventBox()
-        evtbox.connect('button-release-event', self.on_btn_release)
-        evtbox.set_events(Gdk.EventMask.BUTTON_RELEASE_MASK)
-        self._overlay.add_overlay(evtbox)
+        self._evtbox = Gtk.EventBox()
+        self._evtbox.set_events(Gdk.EventMask.BUTTON_RELEASE_MASK)
+        self._overlay.add_overlay(self._evtbox)
 
         """if self.__source is None:
             self.logo = Gtk.Image()
@@ -96,6 +82,8 @@ class CameraWidget(Gtk.VBox):
             
         self.show_all()
     
+    def set_popup_menu(self, func, data=None):
+        self._evtbox.connect('button-release-event', func, data)
     
     def __createCameraBin(self, source, dest):
         if self.__camera_bin is not None:
@@ -103,7 +91,6 @@ class CameraWidget(Gtk.VBox):
         
         self.__camera_bin = CameraBin(source, dest, self.app, self.get_camera_name().lower())
         self.__camera_bin.connect('recording', self._on_video_recording)
-        
     
     def _on_video_recording(self, cambin, bRecord):
         self.is_recording = bRecord

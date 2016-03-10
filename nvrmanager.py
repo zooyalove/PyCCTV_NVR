@@ -1,7 +1,7 @@
 import gi
 gi.require_version('Gst', '1.0')
 
-from gi.repository import Gst, Gtk
+from gi.repository import Gst, Gtk, Gdk
 
 """
 @param app: Root class -> Purun NVR
@@ -27,7 +27,31 @@ class NvrManager(Gtk.VBox):
         if camera.get_source() is not None:
             self.player.add(camera.get_bin().bin)
             
+        camera.set_popup_menu(self.on_popup_menu, camera_name)
+            
         
+    def on_popup_menu(self, widget, evt, data):
+        if evt.type == Gdk.EventType.BUTTON_RELEASE and evt.button == 3:
+            print(widget.get_parent().get_parent())
+            print(data)
+            m = Gtk.Menu()
+            title = Gtk.MenuItem(data.upper())
+            title.set_sensitive(False)
+            m.append(title)
+            
+            m.append(Gtk.SeparatorMenuItem())
+            
+            i = Gtk.MenuItem('Hello')
+            m.append(i)
+            m.show_all()
+            
+            m.attach_to_widget(widget)
+            m.popup(None, None, None, None, evt.button, evt.time)
+            
+            return True
+        
+        return False
+    
     def player_configure(self):    
         self.bus = self.player.get_bus()
         self.bus.add_signal_watch()
