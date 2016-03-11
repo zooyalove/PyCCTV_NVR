@@ -41,8 +41,20 @@ class NvrManager(Gtk.VBox):
             
             m.append(Gtk.SeparatorMenuItem())
             
-            i = Gtk.MenuItem('Hello')
-            m.append(i)
+            m2 = Gtk.Menu()
+            day_view = Gtk.MenuItem('일자별 보기')
+            m2.append(day_view)
+            
+            time_view = Gtk.MenuItem('시간대별 보기')
+            m2.append(time_view)
+            
+            video_menu = Gtk.MenuItem('영상')
+            video_menu.set_submenu(m2)
+            m.append(video_menu)
+            
+            img_menu = Gtk.MenuItem('촬영된 사진보기')
+            m.append(img_menu)
+            
             m.show_all()
             
             m.attach_to_widget(widget)
