@@ -374,7 +374,7 @@ class VideoBin(Bin):
                         sshotsrc.end_of_stream()
                     
                         self.is_motion_start = not self.is_motion_start
-                        self.motion_detect_time = after_detect_time
+                        self.motion_detect_time = 0.0
                     
             
         Gdk.threads_leave()
