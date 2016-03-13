@@ -31,6 +31,12 @@ class VideoPlayer(Gtk.Window):
         sc_win.set_size_request(200, -1)
         sc_win.set_border_width(4)
         sc_win.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+        sc_win.set_shadow_type(Gtk.ShadowType.IN)
+        
+        self.store = self.create_model()
+        self.listview = Gtk.TreeView(self.store)
+        
+        sc_win.add(self.listview)
         
         hbox.pack_end(sc_win, False, True, 0)
         
@@ -89,6 +95,16 @@ class VideoPlayer(Gtk.Window):
         vbox.pack_end(ctrl1_hbox, False, False, 3)
         
         self.show_all()
+    
+    def create_model(self):
+        store = Gtk.ListStore(str, str)
+        return store
+    
+    def get_videos(self, prefix):
+        pass
+    
+    def change_title(self, title):
+        self.set_title(title + self.player_title)
         
     def on_prev_clicked(self, widget):
         pass
