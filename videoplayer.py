@@ -1,8 +1,9 @@
-import gi
+import os, gi
 gi.require_version('Gst', '1.0')
+gi.require_version('GstPbutils', '1.0')
 
 from gi.repository import Gst, Gtk, Gdk
-from gi.repository import GdkX11, GstVideo
+from gi.repository import GdkX11, GstVideo, GstPbutils
 
 class VideoPlayer(Gtk.Window):
     player_title = u'PyCCTV_NVR VideoPlayer'
@@ -101,7 +102,21 @@ class VideoPlayer(Gtk.Window):
         return store
     
     def get_videos(self, prefix):
-        pass
+        def nsec2time(nsec):
+            sec = nsec / Gst.SECOND
+            m, s = divmod(sec, 60)
+            h, m = divmod(m, s)
+            
+            return '%02d:%02d:%02d' % (h, m, s)
+            
+        vid_list = os.listdir(self.app.config['VIDEO_PATH'])
+        for filename in vid_list:
+            full_filename = os.path.join(self.app.config['VIDEO_PATH'], filename)
+            if os.path.isfile(full_filename) and filename.startswith(prefix):
+                discoverer = GstPbutils.Discoverer.new(Gst.SECOND)
+                info = discoverer.discover_uri('file://'+full_filename)
+                print(info.get_duration())
+                self.store.append([filename, nsec2time(info.get_duration())])
     
     def change_title(self, title):
         self.set_title(title + self.player_title)
