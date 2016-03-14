@@ -104,7 +104,7 @@ class FileListingCellDataExample:
 
     def make_list(self, dname=None):
         if not dname:
-            self.dirname = os.path.expanduser('~Administrator')
+            self.dirname = os.path.expanduser('~')
         else:
             self.dirname = os.path.abspath(dname)
         self.window.set_title(self.dirname)

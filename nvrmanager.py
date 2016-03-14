@@ -43,17 +43,20 @@ class NvrManager(Gtk.VBox):
             
             m2 = Gtk.Menu()
             day_view = Gtk.MenuItem('일자별 보기')
+            day_view.connect('activated', self.on_dayview_activated, data)
             m2.append(day_view)
             
             time_view = Gtk.MenuItem('시간대별 보기')
+            time_view.connect('activated', self.on_timeview_activated, data)
             m2.append(time_view)
             
             video_menu = Gtk.MenuItem('영상')
             video_menu.set_submenu(m2)
             m.append(video_menu)
             
-            img_menu = Gtk.MenuItem('촬영된 사진보기')
-            m.append(img_menu)
+            img_view = Gtk.MenuItem('촬영된 사진보기')
+            img_view.connect('activated', self.on_imgview_activate, data)
+            m.append(img_view)
             
             m.show_all()
             
@@ -78,7 +81,15 @@ class NvrManager(Gtk.VBox):
                 
         self.bus.connect('sync-message::element', sync_msg_handler)
 
-        
+    def on_dayview_activated(self, widget, data):
+        pass
+    
+    def on_timeview_activated(self, widget, data):
+        pass
+    
+    def on_imgview_activated(self, widget, data):
+        pass
+    
     def on_message(self, bus, msg):
         t = msg.type
         if t == Gst.MessageType.ERROR:

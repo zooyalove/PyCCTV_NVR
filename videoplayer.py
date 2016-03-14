@@ -12,6 +12,9 @@ class VideoPlayer(Gtk.Window):
         super(VideoPlayer, self).__init__(type=Gtk.WindowType.TOPLEVEL)
         
         self.app = app
+        self.playlist = []
+        self.play_index = -1
+        self.is_playing = False
         
         self.set_title(self.player_title)
         self.set_border_width(2)
@@ -21,7 +24,8 @@ class VideoPlayer(Gtk.Window):
         self.set_modal(True)
         
         self._setupUI()
-        self._get_videos(prefix, isDate, period)
+        if prefix is not None:
+            self._get_videos(prefix, isDate, period)
         
         
     def _setupUI(self):
@@ -72,6 +76,7 @@ class VideoPlayer(Gtk.Window):
             btn.set_image(btn_img)
             btn.set_tooltip_text(tooltip)
             btn.set_relief(Gtk.ReliefStyle.NONE)
+            btn.set_sensitive(False)
             btn.connect('clicked', func)
             ctrl2_hbox.pack_start(btn, False, False, 0)
             
@@ -128,14 +133,14 @@ class VideoPlayer(Gtk.Window):
                     _date, _time = filename.split('.')[0].split('_')[1:]
                     if isDate:
                         if int(_date) >= period[0] and int(_date) <= period[1]:
-                            video_count = video_count + 1
                             info = get_duration(full_filename)
                     else:
                         if int(_time) >= period[0] and int(_time) <= period[1]:
-                            video_count = video_count + 1
                             info = get_duration(full_filename)
                             
                     if info is not None:
+                        video_count = video_count + 1
+                        self.playlist.append(filename)
                         print(info.get_duration())
                         self.store.append([filename, nsec2time(info.get_duration())])
                         info = None
@@ -149,26 +154,48 @@ class VideoPlayer(Gtk.Window):
             dialog.destroy()
             
 
-    def _change_title(self, title):
-        self.set_title(title + self.player_title)
+    def _change_title(self):
+        self.set_title(self.playlist[self.play_index] + ' - ' + self.player_title)
         
     def on_prev_clicked(self, widget):
-        pass
+        if self.play_index <= 0:
+            self.prev_btn.set_sensitive(False)
+        else:
+            self.prev_btn.set_sensitive(True)
+            
+        self._change_title()
         
     def on_rewind_clicked(self, widget):
         pass
 
     def on_play_clicked(self, widget):
-        pass
+        if not self.is_playing:
+            btn_img = Gtk.Image()
+            btn_img.set_from_stock(Gtk.STOCK_MEDIA_PAUSE, Gtk.IconSize.BUTTON)
+            self.play_btn.set_image(btn_img)
+        else:
+            btn_img = Gtk.Image()
+            btn_img.set_from_stock(Gtk.STOCK_MEDIA_PLAY, Gtk.IconSize.BUTTON)
+            self.play_btn.set_image(btn_img)
+            
+        self.is_playing = not self.is_playing
 
     def on_stop_clicked(self, widget):
-        pass
+        if self.is_playing:
+            btn_img = Gtk.Image()
+            btn_img.set_from_stock(Gtk.STOCK_MEDIA_PLAY, Gtk.IconSize.BUTTON)
+            self.play_btn.set_image(btn_img)
+            
+            self.is_playing = False
 
     def on_forward_clicked(self, widget):
         pass
 
     def on_next_clicked(self, widget):
-        pass
+        if self.play_index == (len(self.playlist) - 1):
+            self.next_btn.set_sensitive(False)
+            
+        self._change_title()
     
     
 if __name__ == '__main__':
@@ -177,6 +204,6 @@ if __name__ == '__main__':
     GObject.threads_init()
     #Gst.init(None)
     
-    vp = VideoPlayer(None)
+    vp = VideoPlayer(None, None, None)
     vp.connect('destroy', Gtk.main_quit)
     Gtk.main()
