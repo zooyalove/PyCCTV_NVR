@@ -1,4 +1,5 @@
-import os, gi
+import os, time
+import gi
 gi.require_version('Gst', '1.0')
 gi.require_version('GstPbutils', '1.0')
 
@@ -7,7 +8,7 @@ from gi.repository import GdkX11, GstVideo, GstPbutils
 
 class VideoPlayer(Gtk.Window):
     player_title = u'PyCCTV_NVR VideoPlayer'
-    def __init__(self, app):
+    def __init__(self, app, prefix, period, isDate=True):
         super(VideoPlayer, self).__init__(type=Gtk.WindowType.TOPLEVEL)
         
         self.app = app
@@ -19,9 +20,11 @@ class VideoPlayer(Gtk.Window):
         self.set_destroy_with_parent(True)
         self.set_modal(True)
         
-        self.setupUI()
+        self._setupUI()
+        self._get_videos(prefix, isDate, period)
         
-    def setupUI(self):
+        
+    def _setupUI(self):
         hbox = Gtk.HBox()
         self.add(hbox)
         
@@ -34,7 +37,7 @@ class VideoPlayer(Gtk.Window):
         sc_win.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
         sc_win.set_shadow_type(Gtk.ShadowType.IN)
         
-        self.store = self.create_model()
+        self.store = self._create_model()
         self.listview = Gtk.TreeView(self.store)
         
         sc_win.add(self.listview)
@@ -97,28 +100,56 @@ class VideoPlayer(Gtk.Window):
         
         self.show_all()
     
-    def create_model(self):
+    def _create_model(self):
         store = Gtk.ListStore(str, str)
         return store
     
-    def get_videos(self, prefix):
+    def _get_videos(self, prefix, isDate, period):
+        video_count = 0
+        info = None
+        create_time = time.time() 
+        vid_list = os.listdir(self.app.config['VIDEO_PATH'])
+        
         def nsec2time(nsec):
             sec = nsec / Gst.SECOND
             m, s = divmod(sec, 60)
             h, m = divmod(m, s)
             
             return '%02d:%02d:%02d' % (h, m, s)
+        
+        def get_duration(fname):
+            discoverer = GstPbutils.Discoverer.new(Gst.SECOND)
+            return discoverer.discover_uri('file://'+fname)
             
-        vid_list = os.listdir(self.app.config['VIDEO_PATH'])
         for filename in vid_list:
             full_filename = os.path.join(self.app.config['VIDEO_PATH'], filename)
             if os.path.isfile(full_filename) and filename.startswith(prefix):
-                discoverer = GstPbutils.Discoverer.new(Gst.SECOND)
-                info = discoverer.discover_uri('file://'+full_filename)
-                print(info.get_duration())
-                self.store.append([filename, nsec2time(info.get_duration())])
-    
-    def change_title(self, title):
+                if int(create_time - os.path.getctime(full_filename)) >= 30*60:
+                    _date, _time = filename.split('.')[0].split('_')[1:]
+                    if isDate:
+                        if int(_date) >= period[0] and int(_date) <= period[1]:
+                            video_count = video_count + 1
+                            info = get_duration(full_filename)
+                    else:
+                        if int(_time) >= period[0] and int(_time) <= period[1]:
+                            video_count = video_count + 1
+                            info = get_duration(full_filename)
+                            
+                    if info is not None:
+                        print(info.get_duration())
+                        self.store.append([filename, nsec2time(info.get_duration())])
+                        info = None
+
+        if video_count == 0:
+            dialog = Gtk.MessageDialog(self, 0, Gtk.MessageType.ERROR,
+                                       Gtk.ButtonsType.CLOSE, "Don't exists CCTV Videos")
+            dialog.format_secondary_text("재생가능한 CCTV 영상이 존재하지 않습니다!!!")
+            dialog.run()
+            print('Error dialog closed')
+            dialog.destroy()
+            
+
+    def _change_title(self, title):
         self.set_title(title + self.player_title)
         
     def on_prev_clicked(self, widget):
