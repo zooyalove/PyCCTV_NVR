@@ -1,4 +1,4 @@
-import os, time
+import os, time, glob
 import gi
 gi.require_version('Gst', '1.0')
 gi.require_version('GstPbutils', '1.0')
@@ -26,6 +26,7 @@ class VideoPlayer(Gtk.Window):
         self.set_modal(True)
         
         self._setupUI()
+        
         if prefix is not None:
             self._get_videos(prefix, isDate, period)
         
@@ -64,24 +65,25 @@ class VideoPlayer(Gtk.Window):
         self.stop_btn = Gtk.Button()
         self.forward_btn = Gtk.Button()
         self.next_btn = Gtk.Button()
-
-        ctrl_buttons = ((self.prev_btn, Gtk.STOCK_MEDIA_PREVIOUS, u'이전 영상', self.on_prev_clicked),
-                        (self.rewind_btn, Gtk.STOCK_MEDIA_REWIND, u'10초전으로', self.on_rewind_clicked),
-                        (self.play_btn, Gtk.STOCK_MEDIA_PLAY, u'재생', self.on_play_clicked),
-                        (self.stop_btn, Gtk.STOCK_MEDIA_STOP, u'정지', self.on_stop_clicked),
-                        (self.forward_btn, Gtk.STOCK_MEDIA_FORWARD, u'10초앞으로', self.on_forward_clicked),
-                        (self.next_btn, Gtk.STOCK_MEDIA_NEXT, u'다음 영상', self.on_next_clicked))
         
-        for btn, st_img, tooltip, func in ctrl_buttons:
+        ctrl_buttons = ((self.prev_btn, Gtk.STOCK_MEDIA_PREVIOUS, u'이전 영상 <B>', self.on_prev_clicked, ),
+                        (self.rewind_btn, Gtk.STOCK_MEDIA_REWIND, u'10초전으로 <Right Arrow>', self.on_rewind_clicked),
+                        (self.play_btn, Gtk.STOCK_MEDIA_PLAY, u'재생 <Spacebar>', self.on_play_clicked),
+                        (self.stop_btn, Gtk.STOCK_MEDIA_STOP, u'정지 <S>', self.on_stop_clicked),
+                        (self.forward_btn, Gtk.STOCK_MEDIA_FORWARD, u'10초앞으로 <Left Arrow>', self.on_forward_clicked),
+                        (self.next_btn, Gtk.STOCK_MEDIA_NEXT, u'다음 영상 <N>', self.on_next_clicked))
+        
+        for btn, st_img, tooltip, clickfunc in ctrl_buttons:
             btn_img = Gtk.Image()
             btn_img.set_from_stock(st_img, Gtk.IconSize.BUTTON)
             btn.set_image(btn_img)
             btn.set_tooltip_text(tooltip)
             btn.set_relief(Gtk.ReliefStyle.NONE)
             btn.set_sensitive(False)
-            btn.connect('clicked', func)
+            btn.connect('clicked', clickfunc)
             ctrl2_hbox.pack_start(btn, False, False, 0)
             
+        self.connect('key-release-event', self.on_key_release)
         
         vbox.pack_end(ctrl2_hbox, False, False, 2)
         
@@ -112,20 +114,32 @@ class VideoPlayer(Gtk.Window):
         return store
     
     def _get_videos(self, prefix, isDate, period):
+        #vid_list = glob.glob(os.path.join(self.app.config['VIDEO_PATH'], prefix+'_*'))
+        vid_list = glob.glob(os.path.join('.', prefix+'_*'))
+        
+        if len(vid_list) == 0:
+            dialog = Gtk.MessageDialog(self, 0, Gtk.MessageType.ERROR,
+                                       Gtk.ButtonsType.CLOSE, "Don't exists CCTV Videos")
+            dialog.format_secondary_text("재생가능한 CCTV 영상이 존재하지 않습니다!!!")
+            dialog.run()
+            print('Error dialog closed')
+            dialog.destroy()
+            
+            return False
+        
         video_count = 0
         info = None
-        create_time = time.time() 
-        vid_list = os.listdir(self.app.config['VIDEO_PATH'])
-        
+        create_time = int(time.time())
+         
         def get_duration(fname):
             discoverer = GstPbutils.Discoverer.new(Gst.SECOND)
             return discoverer.discover_uri('file://'+fname)
-            
+        
         for filename in vid_list:
             full_filename = os.path.join(self.app.config['VIDEO_PATH'], filename)
-            if os.path.isfile(full_filename) and filename.startswith(prefix):
-                if int(create_time - os.path.getctime(full_filename)) >= 30*60:
-                    _date, _time = filename.split('.')[0].split('_')[1:]
+            if os.path.isfile(full_filename):
+                if (create_time - os.path.getctime(full_filename)) >= 1800:
+                    _date, _time = str(filename.split('.')[0]).split('_')[1:]
                     if isDate:
                         if int(_date) >= period[0] and int(_date) <= period[1]:
                             info = get_duration(full_filename)
@@ -148,7 +162,21 @@ class VideoPlayer(Gtk.Window):
             print('Error dialog closed')
             dialog.destroy()
             
-
+            return False
+        
+        self._init_controller()
+        return True
+        
+    def _init_controller(self):
+        if len(self.playlist) > 1:
+            self.next_btn.set_sensitive(True)
+            
+        self.play_btn.set_sensitive(True)
+        self.stop_btn.set_sensitive(True)
+        
+        self.play_index = 0
+        self.on_play_clicked(None)
+        
     def _change_title(self):
         self.set_title(self.playlist[self.play_index] + ' - ' + self.player_title)
         
@@ -160,7 +188,35 @@ class VideoPlayer(Gtk.Window):
     
     def _stop(self):
         pass
-    
+
+    def on_key_release(self, widget, eventkey):
+        if eventkey.keyval == Gdk.KEY_b:
+            if self.prev_btn.get_sensitive():
+                self.prev_btn.clicked()
+
+        elif eventkey.keyval == Gdk.KEY_Left:
+            if self.rewind_btn.get_sensitive():
+                self.rewind_btn.clicked()
+
+        elif eventkey.keyval == Gdk.KEY_Right:
+            if self.forward_btn.get_sensitive():
+                self.forward_btn.clicked()
+            
+        elif eventkey.keyval == Gdk.KEY_space:
+            if self.play_btn.get_sensitive():
+                self.play_btn.clicked()
+            
+        elif eventkey.keyval == Gdk.KEY_s:
+            if self.stop_btn.get_sensitive():
+                self.stop_btn.clicked()
+                
+        elif eventkey.keyval == Gdk.KEY_n:
+            if self.next_btn.get_sensitive():
+                self.next_btn.clicked()
+
+        print('%s key is released' % eventkey.keyval)
+        
+
     def on_prev_clicked(self, widget):
         self.play_index = self.play_index - 1
         
@@ -187,6 +243,8 @@ class VideoPlayer(Gtk.Window):
             self._pause()
             
         self.is_playing = not self.is_playing
+        self.rewind_btn.set_sensitive(True)
+        self.forward_btn.set_sensitive(True)
 
     def on_stop_clicked(self, widget):
         if self.is_playing:
@@ -195,8 +253,7 @@ class VideoPlayer(Gtk.Window):
             self.play_btn.set_image(btn_img)
             
             self.is_playing = False
-        
-        self._stop()
+            self._stop()        
 
     def on_forward_clicked(self, widget):
         pass
@@ -216,6 +273,6 @@ if __name__ == '__main__':
     GObject.threads_init()
     #Gst.init(None)
     
-    vp = VideoPlayer(None, None, None)
+    vp = VideoPlayer(None, 'cam1', None)
     vp.connect('destroy', Gtk.main_quit)
     Gtk.main()
