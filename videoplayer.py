@@ -6,6 +6,8 @@ gi.require_version('GstPbutils', '1.0')
 from gi.repository import Gst, Gtk, Gdk
 from gi.repository import GdkX11, GstVideo, GstPbutils
 
+from utils import nsec2time
+
 class VideoPlayer(Gtk.Window):
     player_title = u'PyCCTV_NVR VideoPlayer'
     def __init__(self, app, prefix, period, isDate=True):
@@ -115,13 +117,6 @@ class VideoPlayer(Gtk.Window):
         create_time = time.time() 
         vid_list = os.listdir(self.app.config['VIDEO_PATH'])
         
-        def nsec2time(nsec):
-            sec = nsec / Gst.SECOND
-            m, s = divmod(sec, 60)
-            h, m = divmod(m, s)
-            
-            return '%02d:%02d:%02d' % (h, m, s)
-        
         def get_duration(fname):
             discoverer = GstPbutils.Discoverer.new(Gst.SECOND)
             return discoverer.discover_uri('file://'+fname)
@@ -157,7 +152,18 @@ class VideoPlayer(Gtk.Window):
     def _change_title(self):
         self.set_title(self.playlist[self.play_index] + ' - ' + self.player_title)
         
+    def _play(self):
+        pass
+    
+    def _pause(self):
+        pass
+    
+    def _stop(self):
+        pass
+    
     def on_prev_clicked(self, widget):
+        self.play_index = self.play_index - 1
+        
         if self.play_index <= 0:
             self.prev_btn.set_sensitive(False)
         else:
@@ -173,10 +179,12 @@ class VideoPlayer(Gtk.Window):
             btn_img = Gtk.Image()
             btn_img.set_from_stock(Gtk.STOCK_MEDIA_PAUSE, Gtk.IconSize.BUTTON)
             self.play_btn.set_image(btn_img)
+            self._play()
         else:
             btn_img = Gtk.Image()
             btn_img.set_from_stock(Gtk.STOCK_MEDIA_PLAY, Gtk.IconSize.BUTTON)
             self.play_btn.set_image(btn_img)
+            self._pause()
             
         self.is_playing = not self.is_playing
 
@@ -187,11 +195,15 @@ class VideoPlayer(Gtk.Window):
             self.play_btn.set_image(btn_img)
             
             self.is_playing = False
+        
+        self._stop()
 
     def on_forward_clicked(self, widget):
         pass
 
     def on_next_clicked(self, widget):
+        self.play_index = self.play_index + 1
+        
         if self.play_index == (len(self.playlist) - 1):
             self.next_btn.set_sensitive(False)
             
