@@ -147,11 +147,12 @@ class VideoPlayer(Gtk.Window):
                         if int(_time) >= period[0] and int(_time) <= period[1]:
                             info = get_duration(full_filename)
                             
-                    if info is not None:
+                    if info is not None and isinstance(info, GstPbutils.DiscovererInfo):
                         video_count = video_count + 1
                         self.playlist.append(filename)
                         print(info.get_duration())
                         self.store.append([filename, nsec2time(info.get_duration())])
+                        info.unref()
                         info = None
 
         if video_count == 0:
@@ -271,7 +272,7 @@ if __name__ == '__main__':
     from gi.repository import GObject
     
     GObject.threads_init()
-    #Gst.init(None)
+    Gst.init(None)
     
     vp = VideoPlayer(None, 'cam1', None)
     vp.connect('destroy', Gtk.main_quit)
