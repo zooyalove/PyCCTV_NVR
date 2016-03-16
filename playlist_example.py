@@ -13,7 +13,8 @@ class VideoPlayer(Gtk.Window):
     def __init__(self):
         super(VideoPlayer, self).__init__(type=Gtk.WindowType.TOPLEVEL)
         
-        self.playlist = ['sintel_trailer-480p.webm', 'SAM_1297.MP4', 'SAM_1298.MP4', 'SAM_1300.MP4']
+        #self.playlist = ['sintel_trailer-480p.webm', 'SAM_1297.MP4', 'SAM_1298.MP4', 'SAM_1300.MP4']
+        self.playlist = ['ladlaceydanny_2k.wmv', 'ladumawill_2k.wmv', 'rm11026_800.mp4', 'ultra_hot_big.mp4']
         self.play_index = -1
         self.is_playing = False
         
@@ -39,6 +40,10 @@ class VideoPlayer(Gtk.Window):
         
         self.store = self._create_model()
         self.listview = Gtk.TreeView(self.store)
+        self.listview.set_headers_visible(False)
+        self.listview.set_activate_on_single_click(False)
+        
+        self.listview.connect('row-activated', self.on_list_clicked)
         
         sc_win.add(self.listview)
         
@@ -70,6 +75,7 @@ class VideoPlayer(Gtk.Window):
             btn_img = Gtk.Image()
             btn_img.set_from_stock(st_img, Gtk.IconSize.BUTTON)
             btn.set_image(btn_img)
+            btn.set_focus_on_click(False)
             btn.set_tooltip_text(tooltip)
             btn.set_relief(Gtk.ReliefStyle.NONE)
             btn.set_sensitive(False)
@@ -113,6 +119,17 @@ class VideoPlayer(Gtk.Window):
             discoverer = GstPbutils.Discoverer.new(Gst.SECOND)
             return discoverer.discover_uri('file:'+fname)
         
+        title_cell = Gtk.CellRendererText()
+        tvc = Gtk.TreeViewColumn('filename', title_cell, text=0)
+        
+        self.listview.append_column(tvc)
+        
+        time_cell = Gtk.CellRendererText()
+        time_cell.set_property('foreground-rgba', Gdk.RGBA(green=0.46, blue=0))
+        tvc = Gtk.TreeViewColumn('time', time_cell, text=1)
+        
+        self.listview.append_column(tvc)
+        
         for filename in self.playlist:
             full_filename = os.path.abspath(os.path.join(os.path.curdir, filename))
             print(full_filename)
@@ -150,6 +167,37 @@ class VideoPlayer(Gtk.Window):
     def _stop(self):
         pass
 
+    def on_list_clicked(self, tree_view, path, column):
+        model = tree_view.get_model()
+
+        self.play_index = int(path.get_indices()[0])
+        
+        if self.play_index <= 0:
+            self.prev_btn.set_sensitive(False)
+            
+            if len(self.playlist) > 1:
+                if not self.next_btn.get_sensitive():
+                    self.next_btn.set_sensitive(True)
+        elif self.play_index == (len(self.playlist) - 1):
+            self.next_btn.set_sensitive(False)
+            
+            if len(self.playlist) > 1:
+                if not self.prev_btn.get_sensitive():
+                    self.prev_btn.set_sensitive(True)
+        else:
+            if len(self.playlist) > 1:
+                if not self.next_btn.get_sensitive():
+                    self.next_btn.set_sensitive(True)
+            
+                if not self.prev_btn.get_sensitive():
+                    self.prev_btn.set_sensitive(True)
+            
+        if self.is_playing:
+            self.on_stop_clicked(None)
+        
+        self.on_play_clicked(None)
+        
+        
     def on_key_release(self, widget, eventkey):
         if eventkey.keyval == Gdk.KEY_b:
             if self.prev_btn.get_sensitive():
@@ -183,10 +231,13 @@ class VideoPlayer(Gtk.Window):
         
         if self.play_index <= 0:
             self.prev_btn.set_sensitive(False)
-        else:
-            self.prev_btn.set_sensitive(True)
+            
+        if not self.next_btn.get_sensitive():
+            self.next_btn.set_sensitive(True)
             
         self._change_title()
+        self.on_stop_clicked(None)
+        self.on_play_clicked(None)
         
     def on_rewind_clicked(self, widget):
         pass
@@ -202,7 +253,10 @@ class VideoPlayer(Gtk.Window):
             btn_img.set_from_stock(Gtk.STOCK_MEDIA_PLAY, Gtk.IconSize.BUTTON)
             self.play_btn.set_image(btn_img)
             self._pause()
-            
+        
+        if self.get_title() == self.player_title:
+            self._change_title()
+        
         self.is_playing = not self.is_playing
         self.rewind_btn.set_sensitive(True)
         self.forward_btn.set_sensitive(True)
@@ -225,7 +279,12 @@ class VideoPlayer(Gtk.Window):
         if self.play_index == (len(self.playlist) - 1):
             self.next_btn.set_sensitive(False)
             
+        if not self.prev_btn.get_sensitive():
+            self.prev_btn.set_sensitive(True)
+            
         self._change_title()
+        self.on_stop_clicked(None)
+        self.on_play_clicked(None)
     
     
 if __name__ == '__main__':
