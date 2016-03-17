@@ -7,6 +7,7 @@ from gi.repository import Gst, Gtk, Gdk
 from gi.repository import GdkX11, GstVideo, GstPbutils
 
 from utils import nsec2time
+from urllib.request import pathname2url
 
 class VideoPlayer(Gtk.Window):
     player_title = u'PyCCTV_NVR VideoPlayer'
@@ -46,6 +47,12 @@ class VideoPlayer(Gtk.Window):
         
         self.store = self._create_model()
         self.listview = Gtk.TreeView(self.store)
+        self.listview.set_headers_visible(False)
+        self.listview.set_activate_on_single_click(False)
+        self.listview.set_can_focus(False)
+        self.listselection = self.listview.get_selection()
+        
+        self.listview.connect('row-activated', self.on_list_clicked)
         
         sc_win.add(self.listview)
         
@@ -77,6 +84,7 @@ class VideoPlayer(Gtk.Window):
             btn_img = Gtk.Image()
             btn_img.set_from_stock(st_img, Gtk.IconSize.BUTTON)
             btn.set_image(btn_img)
+            btn.set_focus_on_click(False)
             btn.set_tooltip_text(tooltip)
             btn.set_relief(Gtk.ReliefStyle.NONE)
             btn.set_sensitive(False)
@@ -133,7 +141,7 @@ class VideoPlayer(Gtk.Window):
          
         def get_duration(fname):
             discoverer = GstPbutils.Discoverer.new(Gst.SECOND)
-            return discoverer.discover_uri('file://'+fname)
+            return discoverer.discover_uri('file:'+fname)
         
         for filename in vid_list:
             full_filename = os.path.join(self.app.config['VIDEO_PATH'], filename)
@@ -142,17 +150,16 @@ class VideoPlayer(Gtk.Window):
                     _date, _time = str(filename.split('.')[0]).split('_')[1:]
                     if isDate:
                         if int(_date) >= period[0] and int(_date) <= period[1]:
-                            info = get_duration(full_filename)
+                            info = get_duration(pathname2url(full_filename))
                     else:
                         if int(_time) >= period[0] and int(_time) <= period[1]:
-                            info = get_duration(full_filename)
+                            info = get_duration(pathname2url(full_filename))
                             
                     if info is not None and isinstance(info, GstPbutils.DiscovererInfo):
                         video_count = video_count + 1
                         self.playlist.append(filename)
                         print(info.get_duration())
                         self.store.append([filename, nsec2time(info.get_duration())])
-                        info.unref()
                         info = None
 
         if video_count == 0:
@@ -190,6 +197,34 @@ class VideoPlayer(Gtk.Window):
     def _stop(self):
         pass
 
+    def on_list_clicked(self, tree_view, path, column):
+        self.play_index = int(path.get_indices()[0])
+        
+        if self.play_index <= 0:
+            self.prev_btn.set_sensitive(False)
+            
+            if len(self.playlist) > 1:
+                if not self.next_btn.get_sensitive():
+                    self.next_btn.set_sensitive(True)
+        elif self.play_index == (len(self.playlist) - 1):
+            self.next_btn.set_sensitive(False)
+            
+            if len(self.playlist) > 1:
+                if not self.prev_btn.get_sensitive():
+                    self.prev_btn.set_sensitive(True)
+        else:
+            if len(self.playlist) > 1:
+                if not self.next_btn.get_sensitive():
+                    self.next_btn.set_sensitive(True)
+            
+                if not self.prev_btn.get_sensitive():
+                    self.prev_btn.set_sensitive(True)
+            
+        if self.is_playing:
+            self.on_stop_clicked(None)
+        
+        self.on_play_clicked(None)
+        
     def on_key_release(self, widget, eventkey):
         if eventkey.keyval == Gdk.KEY_b:
             if self.prev_btn.get_sensitive():
@@ -219,14 +254,19 @@ class VideoPlayer(Gtk.Window):
         
 
     def on_prev_clicked(self, widget):
-        self.play_index = self.play_index - 1
+        self.listselection.unselect_all()
+        self.play_index -= 1
+        self.listselection.select_path(self.play_index)
         
         if self.play_index <= 0:
             self.prev_btn.set_sensitive(False)
-        else:
-            self.prev_btn.set_sensitive(True)
+            
+        if not self.next_btn.get_sensitive():
+            self.next_btn.set_sensitive(True)
             
         self._change_title()
+        self.on_stop_clicked(None)
+        self.on_play_clicked(None)
         
     def on_rewind_clicked(self, widget):
         pass
@@ -243,6 +283,8 @@ class VideoPlayer(Gtk.Window):
             self.play_btn.set_image(btn_img)
             self._pause()
             
+        self._change_title()
+        
         self.is_playing = not self.is_playing
         self.rewind_btn.set_sensitive(True)
         self.forward_btn.set_sensitive(True)
@@ -260,12 +302,19 @@ class VideoPlayer(Gtk.Window):
         pass
 
     def on_next_clicked(self, widget):
-        self.play_index = self.play_index + 1
+        self.listselection.unselect_all()
+        self.play_index += 1        
+        self.listselection.select_path(self.play_index)
         
         if self.play_index == (len(self.playlist) - 1):
             self.next_btn.set_sensitive(False)
             
+        if not self.prev_btn.get_sensitive():
+            self.prev_btn.set_sensitive(True)
+            
         self._change_title()
+        self.on_stop_clicked(None)
+        self.on_play_clicked(None)
     
     
 if __name__ == '__main__':
