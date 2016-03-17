@@ -48,13 +48,12 @@ play_hover_image = GdkPixbuf.Pixbuf.new_from_xpm_data(PLAY_BTN_HOVER)
 
 im.set_from_pixbuf(play_default_image)
 
-def on_motion_notify(widget, event):
-    if event.is_hint:
-        print(event.window.get_pointer())
+def on_enter_notify(widget, event, data):
+    print(event.type)
+    if event.type == Gdk.EventType.ENTER_NOTIFY:
+        data.set_from_pixbuf(play_hover_image)
     else:
-        x, y, state = (event.x, event.y, event.state)
-        
-    #print(x, y, state)
+        data.set_from_pixbuf(play_default_image)
     
 
 win = Gtk.Window(Gtk.WindowType.TOPLEVEL)
@@ -66,8 +65,9 @@ hbox = Gtk.HBox()
 win.add(hbox)
 evtbox = Gtk.EventBox()
 evtbox.add(im)
-evtbox.set_events(evtbox.get_events() | Gdk.EventMask.POINTER_MOTION_HINT_MASK | Gdk.EventMask.POINTER_MOTION_MASK)
-evtbox.connect('motion_notify_event', on_motion_notify)
+evtbox.set_events(evtbox.get_events() | Gdk.EventMask.ENTER_NOTIFY_MASK | Gdk.EventMask.LEAVE_NOTIFY_MASK)
+evtbox.connect('enter_notify_event', on_enter_notify, im)
+evtbox.connect('leave_notify_event', on_enter_notify, im)
 hbox.pack_start(evtbox, False, False, 10)
 
 def main():
