@@ -2,11 +2,13 @@ import gi, os
 gi.require_version('Gst', '1.0')
 gi.require_version('GstPbutils', '1.0')
 
-from gi.repository import Gst, Gtk, Gdk
+from gi.repository import Gst, Gtk, Gdk, GdkPixbuf
 from gi.repository import GstVideo, GstPbutils
 
 from utils import nsec2time
 from urllib.request import pathname2url
+
+import xpm_data
 
 class VideoPlayer(Gtk.Window):
     player_title = u'PyCCTV_NVR VideoPlayer'
@@ -121,9 +123,12 @@ class VideoPlayer(Gtk.Window):
             discoverer = GstPbutils.Discoverer.new(Gst.SECOND)
             return discoverer.discover_uri('file:'+fname)
         
-        title_cell = Gtk.CellRendererText()
-        tvc = Gtk.TreeViewColumn('filename', title_cell, text=0)
+        pixbuf_cell = Gtk.CellRendererPixbuf()
+        tvc = Gtk.TreeViewColumn('filename', pixbuf_cell)
+        tvc.set_cell_data_func(pixbuf_cell, self._pixbuf_play_state)
         
+        title_cell = Gtk.CellRendererText()
+        tvc.pack_start(title_cell, False)
         self.listview.append_column(tvc)
         
         time_cell = Gtk.CellRendererText()
@@ -170,6 +175,21 @@ class VideoPlayer(Gtk.Window):
     def _stop(self):
         pass
 
+    def _pixbuf_play_state(self, column, cell, model, iter, data):
+        if self.play_index == -1:
+            pb = None
+        else:
+            if self.play_index != model.get_path(iter).get_indices()[0]:
+                pb = None
+            else:
+                if self.is_playing:
+                    pb = GdkPixbuf.Pixbuf.new_from_xpm_data(xpm_data.PLAY_BTN_DEFAULT)
+                else:
+                    pb = GdkPixbuf.Pixbuf.new_from_xpm_data(xpm_data.PAUSE_BTN_DEFAULT)
+        
+        cell.set_property('pixbuf', pb)
+            
+        
     def on_list_clicked(self, tree_view, path, column):
         model = tree_view.get_model()
 
