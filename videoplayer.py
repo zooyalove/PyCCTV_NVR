@@ -3,21 +3,24 @@ import gi
 gi.require_version('Gst', '1.0')
 gi.require_version('GstPbutils', '1.0')
 
-from gi.repository import Gst, Gtk, Gdk
+from gi.repository import Gst, Gtk, Gdk, GdkPixbuf
 from gi.repository import GdkX11, GstVideo, GstPbutils
 
 from utils import nsec2time
 from urllib.request import pathname2url
 
+import xpm_data
+
 class VideoPlayer(Gtk.Window):
     player_title = u'PyCCTV_NVR VideoPlayer'
-    def __init__(self, app, prefix, period, isDate=True):
+    def __init__(self, app):
         super(VideoPlayer, self).__init__(type=Gtk.WindowType.TOPLEVEL)
         
         self.app = app
         self.playlist = []
         self.play_index = -1
         self.is_playing = False
+        self.is_autostart = True
         
         self.set_title(self.player_title)
         self.set_border_width(2)
@@ -28,9 +31,18 @@ class VideoPlayer(Gtk.Window):
         
         self._setupUI()
         
-        if prefix is not None:
-            self._get_videos(prefix, isDate, period)
+    def set_autostart(self, autostart=True):
+        if autostart is not None and isinstance(autostart, bool):
+            self.is_autostart = autostart
+            
+    def get_autostart(self):
+        return self.is_autostart
         
+    def run(self):
+        self.show_all()
+        
+        if self.is_autostart:
+            self.on_play_clicked(None)
         
     def _setupUI(self):
         hbox = Gtk.HBox()
@@ -40,18 +52,18 @@ class VideoPlayer(Gtk.Window):
         hbox.add(vbox)
         
         sc_win = Gtk.ScrolledWindow()
-        sc_win.set_size_request(200, -1)
+        sc_win.set_size_request(230, -1)
         sc_win.set_border_width(4)
         sc_win.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
-        sc_win.set_shadow_type(Gtk.ShadowType.IN)
+        sc_win.set_shadow_type(Gtk.ShadowType.ETCHED_IN)
         
         self.store = self._create_model()
+        
         self.listview = Gtk.TreeView(self.store)
         self.listview.set_headers_visible(False)
         self.listview.set_activate_on_single_click(False)
         self.listview.set_can_focus(False)
-        self.listselection = self.listview.get_selection()
-        
+        self.listview.modify_bg(Gtk.StateType.NORMAL, Gdk.Color(0, 0, 0))
         self.listview.connect('row-activated', self.on_list_clicked)
         
         sc_win.add(self.listview)
@@ -103,7 +115,7 @@ class VideoPlayer(Gtk.Window):
         self.lbl_pos.modify_fg(Gtk.StateType.NORMAL, Gdk.Color(65535, 30000, 0))
         ctrl1_hbox.pack_start(self.lbl_pos, False, False, 0)
         
-        self.progress = Gtk.HScale()
+        self.progress = Gtk.Scale(orientation=Gtk.Orientation.HORIZONTAL)
         self.progress.set_draw_value(False)
         self.progress.modify_bg(Gtk.StateType.NORMAL, Gdk.Color(65535, 30000, 0))
         ctrl1_hbox.pack_start(self.progress, True, True, 0)
@@ -115,13 +127,11 @@ class VideoPlayer(Gtk.Window):
         
         vbox.pack_end(ctrl1_hbox, False, False, 3)
         
-        self.show_all()
-    
     def _create_model(self):
         store = Gtk.ListStore(str, str)
         return store
     
-    def _get_videos(self, prefix, isDate, period):
+    def get_videos(self, prefix, isDate, period):
         #vid_list = glob.glob(os.path.join(self.app.config['VIDEO_PATH'], prefix+'_*'))
         vid_list = glob.glob(os.path.join('.', prefix+'_*'))
         
@@ -143,6 +153,25 @@ class VideoPlayer(Gtk.Window):
             discoverer = GstPbutils.Discoverer.new(Gst.SECOND)
             return discoverer.discover_uri('file:'+fname)
         
+        pixbuf_cell = Gtk.CellRendererPixbuf()
+        tvc = Gtk.TreeViewColumn('Pix', pixbuf_cell)
+        tvc.set_cell_data_func(pixbuf_cell, self._pixbuf_play_state)
+        
+        fname_cell = Gtk.CellRendererText()
+        fname_cell.set_property('foreground-rgba', Gdk.RGBA(green=0.46, blue=0))
+        tvc.pack_start(fname_cell, True)
+        tvc.set_cell_data_func(fname_cell, self._file_name)
+        
+        self.listview.append_column(tvc)
+        
+        time_cell = Gtk.CellRendererText()
+        time_cell.set_property('foreground-rgba', Gdk.RGBA(green=0.46, blue=0))
+        tvc = Gtk.TreeViewColumn('time', time_cell, text=1)
+        tvc.set_alignment(1.0)
+        tvc.set_sizing(Gtk.TreeViewColumnSizing.AUTOSIZE)
+        
+        self.listview.append_column(tvc)
+        
         for filename in vid_list:
             full_filename = os.path.join(self.app.config['VIDEO_PATH'], filename)
             if os.path.isfile(full_filename):
@@ -157,8 +186,7 @@ class VideoPlayer(Gtk.Window):
                             
                     if info is not None and isinstance(info, GstPbutils.DiscovererInfo):
                         video_count = video_count + 1
-                        self.playlist.append(filename)
-                        print(info.get_duration())
+                        self.playlist.append([filename, info.get_duration()])
                         self.store.append([filename, nsec2time(info.get_duration())])
                         info = None
 
@@ -183,10 +211,9 @@ class VideoPlayer(Gtk.Window):
         self.stop_btn.set_sensitive(True)
         
         self.play_index = 0
-        self.on_play_clicked(None)
         
     def _change_title(self):
-        self.set_title(self.playlist[self.play_index] + ' - ' + self.player_title)
+        self.set_title(self.playlist[self.play_index][0] + ' - ' + self.player_title)
         
     def _play(self):
         pass
@@ -197,6 +224,25 @@ class VideoPlayer(Gtk.Window):
     def _stop(self):
         pass
 
+    def _pixbuf_play_state(self, column, cell, model, iter, data):
+        if self.play_index == -1:
+            pb = None
+        else:
+            if self.play_index != model.get_path(iter).get_indices()[0]:
+                pb = None
+            else:
+                if self.is_playing:
+                    pb = GdkPixbuf.Pixbuf.new_from_xpm_data(xpm_data.PLAY_MINI_BTN_HOVER)
+                else:
+                    pb = GdkPixbuf.Pixbuf.new_from_xpm_data(xpm_data.PAUSE_MINI_BTN_HOVER)
+        
+        cell.set_property('pixbuf', pb)
+        return
+        
+    def _file_name(self, column, cell, model, iter, data):
+        cell.set_property('text', model.get_value(iter, 0))
+        return            
+        
     def on_list_clicked(self, tree_view, path, column):
         self.play_index = int(path.get_indices()[0])
         
@@ -254,9 +300,7 @@ class VideoPlayer(Gtk.Window):
         
 
     def on_prev_clicked(self, widget):
-        self.listselection.unselect_all()
         self.play_index -= 1
-        self.listselection.select_path(self.play_index)
         
         if self.play_index <= 0:
             self.prev_btn.set_sensitive(False)
@@ -302,9 +346,7 @@ class VideoPlayer(Gtk.Window):
         pass
 
     def on_next_clicked(self, widget):
-        self.listselection.unselect_all()
         self.play_index += 1        
-        self.listselection.select_path(self.play_index)
         
         if self.play_index == (len(self.playlist) - 1):
             self.next_btn.set_sensitive(False)
@@ -323,6 +365,8 @@ if __name__ == '__main__':
     GObject.threads_init()
     Gst.init(None)
     
-    vp = VideoPlayer(None, 'cam1', None)
+    vp = VideoPlayer(None)
     vp.connect('destroy', Gtk.main_quit)
-    Gtk.main()
+    if vp.get_videos('cam1', None, None):
+        vp.run()
+        Gtk.main()
