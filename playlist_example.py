@@ -209,6 +209,7 @@ class VideoPlayer(Gtk.Window):
                     pb = GdkPixbuf.Pixbuf.new_from_xpm_data(xpm_data.PAUSE_MINI_BTN_HOVER)
         
         cell.set_property('pixbuf', pb)
+        return
         
     def _file_name(self, column, cell, model, iter, data):
         cell.set_property('text', model.get_value(iter, 0))
