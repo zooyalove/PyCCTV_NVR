@@ -19,12 +19,14 @@ class VideoPlayer(Gtk.Window):
         self.play_index = -1
         self.is_playing = False
         self.is_autostart = True
+        self.play_xpm = (GdkPixbuf.Pixbuf.new_from_xpm_data(xpm_data.PLAY_MINI_BTN_HOVER), GdkPixbuf.Pixbuf.new_from_xpm_data(xpm_data.PAUSE_MINI_BTN_HOVER))
         
         self.set_title(self.player_title)
         self.set_border_width(2)
         self.modify_bg(Gtk.StateType.NORMAL, Gdk.Color(20000, 20000, 20000))
         
         self._setupUI()
+        self._create_controller()
         
     def set_autostart(self, autostart=True):
         if autostart is not None and isinstance(autostart, bool):
@@ -38,6 +40,9 @@ class VideoPlayer(Gtk.Window):
         
         if self.is_autostart:
             self.on_play_clicked(None)
+            
+    def _create_controller(self):
+        pass
         
     def _setupUI(self):
         hbox = Gtk.HBox()
@@ -113,6 +118,8 @@ class VideoPlayer(Gtk.Window):
         self.progress = Gtk.Scale(orientation=Gtk.Orientation.HORIZONTAL)
         self.progress.set_draw_value(False)
         self.progress.modify_bg(Gtk.StateType.NORMAL, Gdk.Color(65535, 30000, 0))
+        self.progress.set_range(0, 100)
+        self.progress.set_increments(1, 0)
         ctrl1_hbox.pack_start(self.progress, True, True, 0)
         
         self.lbl_dur = Gtk.Label('00:00:00')
@@ -127,8 +134,8 @@ class VideoPlayer(Gtk.Window):
         return store
     
     def get_videos(self):
-        playlist = ['sintel_trailer-480p.webm', 'SAM_1297.MP4', 'SAM_1298.MP4', 'SAM_1300.MP4']
-        #playlist = ['ladlaceydanny_2k.wmv', 'ladumawill_2k.wmv', 'rm11026_800.mp4', 'ultra_hot_big.mp4']
+        #playlist = ['sintel_trailer-480p.webm', 'SAM_1297.MP4', 'SAM_1298.MP4', 'SAM_1300.MP4']
+        playlist = ['ladlaceydanny_2k.wmv', 'ladumawill_2k.wmv', 'rm11026_800.mp4', 'ultra_hot_big.mp4']
         
         info = None
          
@@ -182,7 +189,7 @@ class VideoPlayer(Gtk.Window):
     def _change_duration(self):
         self.lbl_dur.set_text(nsec2time(self.playlist[self.play_index][1]))
         
-        adj = Gtk.Adjustment()
+        #adj = Gtk.Adjustment()
     
     def _change_title(self):
         self.set_title(self.playlist[self.play_index][0] + ' - ' + self.player_title)
@@ -204,9 +211,9 @@ class VideoPlayer(Gtk.Window):
                 pb = None
             else:
                 if self.is_playing:
-                    pb = GdkPixbuf.Pixbuf.new_from_xpm_data(xpm_data.PLAY_MINI_BTN_HOVER)
+                    pb = self.play_xpm[0]
                 else:
-                    pb = GdkPixbuf.Pixbuf.new_from_xpm_data(xpm_data.PAUSE_MINI_BTN_HOVER)
+                    pb = self.play_xpm[1]
         
         cell.set_property('pixbuf', pb)
         return
