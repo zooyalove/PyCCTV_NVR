@@ -78,7 +78,8 @@ class NvrManager(Gtk.VBox):
                 sink_name = sink.get_name()[:sink.get_name().find('_')]
                 print("Sink name : %s" % sink_name)
                 self.cameras[sink_name].video_widget.set_sink(sink)
-                
+        
+        self.bus.connect('message', self.on_message)        
         self.bus.connect('sync-message::element', sync_msg_handler)
 
     def on_dayview_activated(self, widget, data):

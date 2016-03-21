@@ -1,8 +1,8 @@
-import gi, os
+import gi, os, time
 gi.require_version('Gst', '1.0')
 gi.require_version('GstPbutils', '1.0')
 
-from gi.repository import Gst, Gtk, Gdk, GdkPixbuf
+from gi.repository import GLib, Gst, Gtk, Gdk, GdkPixbuf
 from gi.repository import GstVideo, GstPbutils
 
 from utils import nsec2time
@@ -19,6 +19,7 @@ class VideoPlayer(Gtk.Window):
         self.play_index = -1
         self.is_playing = False
         self.is_autostart = True
+        self._timeout_id = 0
         self.play_xpm = (GdkPixbuf.Pixbuf.new_from_xpm_data(xpm_data.PLAY_MINI_BTN_HOVER), GdkPixbuf.Pixbuf.new_from_xpm_data(xpm_data.PAUSE_MINI_BTN_HOVER))
         
         self.set_title(self.player_title)
@@ -41,8 +42,50 @@ class VideoPlayer(Gtk.Window):
         if self.is_autostart:
             self.on_play_clicked(None)
             
-    def _create_controller(self):
-        pass
+    def get_videos(self):
+        playlist = ['sintel_trailer-480p.webm', 'SAM_1297.MP4', 'SAM_1298.MP4', 'SAM_1300.MP4']
+        #playlist = ['ladlaceydanny_2k.wmv', 'ladumawill_2k.wmv', 'rm11026_800.mp4', 'ultra_hot_big.mp4']
+        
+        info = None
+         
+        def get_duration(fname):
+            discoverer = GstPbutils.Discoverer.new(Gst.SECOND)
+            return discoverer.discover_uri('file:'+fname)
+        
+        pixbuf_cell = Gtk.CellRendererPixbuf()
+        tvc = Gtk.TreeViewColumn('Pix', pixbuf_cell)
+        tvc.set_cell_data_func(pixbuf_cell, self._pixbuf_play_state)
+        
+        fname_cell = Gtk.CellRendererText()
+        fname_cell.set_property('foreground-rgba', Gdk.RGBA(green=0.46, blue=0))
+        tvc.pack_start(fname_cell, True)
+        tvc.set_cell_data_func(fname_cell, self._file_name)
+        
+        self.listview.append_column(tvc)
+        
+        time_cell = Gtk.CellRendererText()
+        time_cell.set_property('foreground-rgba', Gdk.RGBA(green=0.46, blue=0))
+        tvc = Gtk.TreeViewColumn('time', time_cell, text=1)
+        tvc.set_alignment(1.0)
+        tvc.set_sizing(Gtk.TreeViewColumnSizing.AUTOSIZE)
+        
+        self.listview.append_column(tvc)
+        
+        for filename in playlist:
+            full_filename = os.path.abspath(os.path.join(os.path.curdir, filename))
+            print(full_filename)
+            if os.path.isfile(full_filename):
+                info = get_duration(pathname2url(full_filename))
+                #self.playlist.append(filename)
+                print(info.get_uri())
+                print(info.get_duration())
+                self.playlist.append([filename, info.get_duration()])
+                self.store.append([filename, nsec2time(info.get_duration())])
+                info = None
+
+        self._init_controller()
+        del playlist
+        return True
         
     def _setupUI(self):
         hbox = Gtk.HBox()
@@ -115,12 +158,13 @@ class VideoPlayer(Gtk.Window):
         self.lbl_pos.modify_fg(Gtk.StateType.NORMAL, Gdk.Color(65535, 30000, 0))
         ctrl1_hbox.pack_start(self.lbl_pos, False, False, 0)
         
-        self.progress = Gtk.Scale(orientation=Gtk.Orientation.HORIZONTAL)
-        self.progress.set_draw_value(False)
-        self.progress.modify_bg(Gtk.StateType.NORMAL, Gdk.Color(65535, 30000, 0))
-        self.progress.set_range(0, 100)
-        self.progress.set_increments(1, 0)
-        ctrl1_hbox.pack_start(self.progress, True, True, 0)
+        self.slider = Gtk.Scale(orientation=Gtk.Orientation.HORIZONTAL)
+        self.slider.set_draw_value(False)
+        self.slider.modify_bg(Gtk.StateType.NORMAL, Gdk.Color(65535, 30000, 0))
+        self.slider.set_range(0, 100)
+        self.slider.set_increments(1, 0)
+        self._slider_handle_id = self.slider.connect('value-changed', self._on_slider_changed)
+        ctrl1_hbox.pack_start(self.slider, True, True, 0)
         
         self.lbl_dur = Gtk.Label('00:00:00')
         self.lbl_dur.set_margin_right(4)
@@ -129,54 +173,24 @@ class VideoPlayer(Gtk.Window):
         
         vbox.pack_end(ctrl1_hbox, False, False, 3)
         
+    def _create_controller(self):
+        self._player = Gst.ElementFactory.make('playbin', 'videoplayer')
+        self._vidsink = Gst.ElementFactory.make('autovideosink', None)
+        #self._vidsink.set_property('force-aspect-ratio', True)
+        
+        self._player.set_property('video-sink', self._vidsink)
+        
+        bus = self._player.get_bus()
+        bus.add_signal_watch()
+        bus.enable_sync_message_emission()
+        
+        bus.connect('message', self._on_message)
+        bus.connect('sync-message::element', self._on_sync_message)
+
     def _create_model(self):
         store = Gtk.ListStore(str, str)
         return store
     
-    def get_videos(self):
-        #playlist = ['sintel_trailer-480p.webm', 'SAM_1297.MP4', 'SAM_1298.MP4', 'SAM_1300.MP4']
-        playlist = ['ladlaceydanny_2k.wmv', 'ladumawill_2k.wmv', 'rm11026_800.mp4', 'ultra_hot_big.mp4']
-        
-        info = None
-         
-        def get_duration(fname):
-            discoverer = GstPbutils.Discoverer.new(Gst.SECOND)
-            return discoverer.discover_uri('file:'+fname)
-        
-        pixbuf_cell = Gtk.CellRendererPixbuf()
-        tvc = Gtk.TreeViewColumn('Pix', pixbuf_cell)
-        tvc.set_cell_data_func(pixbuf_cell, self._pixbuf_play_state)
-        
-        fname_cell = Gtk.CellRendererText()
-        fname_cell.set_property('foreground-rgba', Gdk.RGBA(green=0.46, blue=0))
-        tvc.pack_start(fname_cell, True)
-        tvc.set_cell_data_func(fname_cell, self._file_name)
-        
-        self.listview.append_column(tvc)
-        
-        time_cell = Gtk.CellRendererText()
-        time_cell.set_property('foreground-rgba', Gdk.RGBA(green=0.46, blue=0))
-        tvc = Gtk.TreeViewColumn('time', time_cell, text=1)
-        tvc.set_alignment(1.0)
-        tvc.set_sizing(Gtk.TreeViewColumnSizing.AUTOSIZE)
-        
-        self.listview.append_column(tvc)
-        
-        for filename in playlist:
-            full_filename = os.path.abspath(os.path.join(os.path.curdir, filename))
-            print(full_filename)
-            if os.path.isfile(full_filename):
-                info = get_duration(pathname2url(full_filename))
-                #self.playlist.append(filename)
-                print(info.get_uri())
-                print(info.get_duration())
-                self.playlist.append([filename, info.get_duration()])
-                self.store.append([filename, nsec2time(info.get_duration())])
-                info = None
-
-        self._init_controller()
-        return True
-        
     def _init_controller(self):
         if len(self.playlist) > 1:
             self.next_btn.set_sensitive(True)
@@ -185,23 +199,26 @@ class VideoPlayer(Gtk.Window):
         self.stop_btn.set_sensitive(True)
         
         self.play_index = 0
+        self._set_uri()
+        self.slider.set_value(0)
         
+    def _set_uri(self):
+        self._player.set_property('uri', 'file:'+pathname2url(os.path.abspath(os.path.join('.', self.playlist[self.play_index][0]))))
+                
     def _change_duration(self):
         self.lbl_dur.set_text(nsec2time(self.playlist[self.play_index][1]))
         
-        #adj = Gtk.Adjustment()
-    
     def _change_title(self):
         self.set_title(self.playlist[self.play_index][0] + ' - ' + self.player_title)
         
     def _play(self):
-        pass
+        self._player.set_state(Gst.State.PLAYING)
     
     def _pause(self):
-        pass
+        self._player.set_state(Gst.State.PAUSED)
     
     def _stop(self):
-        pass
+        self._player.set_state(Gst.State.NULL)
 
     def _pixbuf_play_state(self, column, cell, model, iter, data):
         if self.play_index == -1:
@@ -221,6 +238,51 @@ class VideoPlayer(Gtk.Window):
     def _file_name(self, column, cell, model, iter, data):
         cell.set_property('text', model.get_value(iter, 0))
         return            
+        
+    def _on_message(self, bus, msg):
+        t = msg.type
+        if t == Gst.MessageType.ERROR:
+            print('Video Player :: Error received')
+            self.on_stop_clicked(None)
+        elif t == Gst.MessageType.EOS:
+            print('Video Player :: EOS received')
+            self.slider.set_value(0)
+            if len(self.playlist) > 1 and self.play_index < (len(self.playlist) - 1):
+                self.on_next_clicked(None)
+            else:
+                self.on_stop_clicked(None)
+    
+    def _on_sync_message(self, bus, msg):
+        if msg.get_structure().get_name() == "prepare-window-handle":
+            msg.src.set_property('force-aspect-ratio', True)
+            self._vidsink.set_window_handle(self.video_frame.get_property('window').get_xid())
+    
+    def _on_slider_changed(self, slider):
+        seek_time = slider.get_value()
+        self.lbl_pos.set_text(nsec2time(seek_time * Gst.SECOND))
+        self._player.seek_simple(Gst.Format.TIME, Gst.SeekFlags.FLUSH | Gst.SeekFlags.KEY_UNIT, seek_time * Gst.SECOND)
+        
+    def _update_slider(self):
+        if not self.is_playing:
+            return False
+        else:
+            success, duration = self._player.query_duration(Gst.Format.TIME)
+            print(duration)
+            if not success:
+                raise Exception("Couldn't fetch video duration")
+            else:
+                self.slider.set_range(0, duration / Gst.SECOND)
+            
+                success, position = self._player.query_position(Gst.Format.TIME)
+                print(position)
+                if not success:
+                    raise Exception("Couldn't fetch current video position to update slider")
+        
+            self.slider.handler_block(self._slider_handle_id)
+            self.slider.set_value(float(position) / Gst.SECOND)
+            self.lbl_pos.set_text(nsec2time(position))
+            self.slider.handler_unblock(self._slider_handle_id)
+            return True
         
     def on_list_clicked(self, tree_view, path, column):
         self.play_index = int(path.get_indices()[0])
@@ -242,6 +304,7 @@ class VideoPlayer(Gtk.Window):
         if self.is_playing:
             self.on_stop_clicked(None)
         
+        self._set_uri()
         self.on_play_clicked(None)
         
     def on_key_release(self, widget, eventkey):
@@ -281,22 +344,30 @@ class VideoPlayer(Gtk.Window):
         if not self.next_btn.get_sensitive():
             self.next_btn.set_sensitive(True)
             
-        self._change_title()
         self.on_stop_clicked(None)
+        self._set_uri()
         self.on_play_clicked(None)
         
     def on_rewind_clicked(self, widget):
-        pass
+        s, pos = self._player.query_position(Gst.Format.TIME)
+        if s:
+            if pos <= (10*Gst.SECOND):
+                pos = 0
+            else:
+                pos = pos - 10*Gst.SECOND
+            self.slider.set_value(pos)
 
     def on_play_clicked(self, widget):
         if not self.is_playing:
+            self.is_playing = True
             btn_img = Gtk.Image()
             btn_img.set_from_stock(Gtk.STOCK_MEDIA_PAUSE, Gtk.IconSize.BUTTON)
             self.play_btn.set_image(btn_img)
-            
-            model = self.listview.get_model()
             self._play()
+            
+            self._timeout_id = GLib.timeout_add(100, self._update_slider)
         else:
+            self.is_playing = False
             btn_img = Gtk.Image()
             btn_img.set_from_stock(Gtk.STOCK_MEDIA_PLAY, Gtk.IconSize.BUTTON)
             self.play_btn.set_image(btn_img)
@@ -305,7 +376,6 @@ class VideoPlayer(Gtk.Window):
         self._change_duration()
         self._change_title()
         
-        self.is_playing = not self.is_playing
         self.rewind_btn.set_sensitive(True)
         self.forward_btn.set_sensitive(True)
 
@@ -319,7 +389,17 @@ class VideoPlayer(Gtk.Window):
             self._stop()        
 
     def on_forward_clicked(self, widget):
-        pass
+        s, dur = self._player.query_duration(Gst.Format.TIME)
+        if not s:
+            return False
+        
+        s, pos = self._player.query_position(Gst.Format.TIME)
+        if s:
+            if pos >= (dur - (10*Gst.SECOND)):
+                pos = dur
+            else:
+                pos = pos + 10*Gst.SECOND
+            self.slider.set_value(pos)
 
     def on_next_clicked(self, widget):
         self.play_index += 1
@@ -330,8 +410,8 @@ class VideoPlayer(Gtk.Window):
         if not self.prev_btn.get_sensitive():
             self.prev_btn.set_sensitive(True)
             
-        self._change_title()
         self.on_stop_clicked(None)
+        self._set_uri()
         self.on_play_clicked(None)
         
     
@@ -343,6 +423,7 @@ if __name__ == '__main__':
     
     vp = VideoPlayer()
     vp.connect('destroy', Gtk.main_quit)
+    vp.set_autostart(False)
     vp.get_videos()
     vp.run()
     Gtk.main()
