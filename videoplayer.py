@@ -32,6 +32,7 @@ class VideoPlayer(Gtk.Window):
         self.set_transient_for(app)
         self.set_destroy_with_parent(True)
         self.set_modal(True)
+        self.connect('destroy', self._exit)
         
         self._setupUI()
         self._create_controller()
@@ -78,6 +79,7 @@ class VideoPlayer(Gtk.Window):
         self.video_frame = Gtk.DrawingArea()
         self.video_frame.modify_bg(Gtk.StateType.NORMAL, Gdk.Color(0, 0, 0))
         self.video_frame.set_size_request(640, 480)
+        self.video_frame.set_double_buffered(False)
         vbox.pack_start(self.video_frame, True, True, 0)
         
         # play control
@@ -199,22 +201,23 @@ class VideoPlayer(Gtk.Window):
             dialog.run()
             print('Error dialog closed')
             dialog.destroy()
-            
+            del vid_list
             return False
         
+        del vid_list
         self._init_controller()
         return True
         
     def _exit(self):
         del self.playlist
+        self._stop()
         self.bus.unref()
         self._player.unref()
-        self._stop()
         self._timeout_id = 0
         
     def _create_controller(self):
         self._player = Gst.ElementFactory.make('playbin', 'videoplayer')
-        self._vidsink = Gst.ElementFactory.make('autovideosink', None)
+        self._vidsink = Gst.ElementFactory.make('xvimagesink', None)
         self._vidsink.set_property('force-aspect-ratio', True)
         
         self._player.set_property('video-sink', self._vidsink)
@@ -238,7 +241,12 @@ class VideoPlayer(Gtk.Window):
         self.stop_btn.set_sensitive(True)
         
         self.play_index = 0
+        self._set_uri()
+        self.slider.set_value(0.0)
         
+    def _set_uri(self):
+        self._player.set_property('uri', 'file:'+pathname2url(os.path.join(self.app.config['VIDEO_PATH'], self.playlist[self.play_index][0])))
+                
     def _change_duration(self):
         self.lbl_dur.set_text(nsec2time(self.playlist[self.play_index][1]))
         
@@ -276,15 +284,15 @@ class VideoPlayer(Gtk.Window):
     def _on_message(self, bus, msg):
         t = msg.type
         if t == Gst.MessageType.ERROR:
-            self._stop()
+            print('Video Player :: Error received')
+            self._on_stop_clicked(None)
         elif t == Gst.MessageType.EOS:
+            print('Video Player :: EOS received')
+            self.slider.set_value(0.0)
             if len(self.playlist) > 1 and self.play_index < (len(self.playlist) - 1):
-                self.play_index += 1
-                self._stop()
-                self._player.set_property('uri', 'file:'+pathname2url(os.path.join(self.app.config['VIDEO_PATH'], self.playlist[self.play_index][0])))
-                self._play()
+                self._on_next_clicked(None)
             else:
-                self._stop()
+                self._on_stop_clicked(None)
     
     def _on_sync_message(self, bus, msg):
         if msg.get_structure().get_name() == "prepare-window-handle":
@@ -292,26 +300,29 @@ class VideoPlayer(Gtk.Window):
     
     def _on_slider_changed(self, slider):
         seek_time = slider.get_value()
+        self.lbl_pos.set_text(nsec2time(seek_time * Gst.SECOND))
         self._player.seek_simple(Gst.Format.TIME, Gst.SeekFlags.FLUSH | Gst.SeekFlags.KEY_UNIT, seek_time * Gst.SECOND)
         
     def _update_slider(self):
         if not self.is_playing:
             return False
         
-        success, duration = self._player.query_duration(Gst.Format.TIME)
-        if not success:
-            raise Exception("Couldn't fetch video duration")
         else:
-            self.slider.set_range(0, duration / Gst.SECOND)
+            success, duration = self._player.query_duration(Gst.Format.TIME)
+            if not success:
+                raise Exception("Couldn't fetch video duration")
+            else:
+                self.slider.set_range(0, duration / Gst.SECOND)
             
-        success, position = self._player.query_position(Gst.Format.TIME)
-        if not success:
-            raise Exception("Couldn't fetch current video position to update slider")
+            success, position = self._player.query_position(Gst.Format.TIME)
+            if not success:
+                raise Exception("Couldn't fetch current video position to update slider")
         
-        self.slider.handler_block(self._slider_handle_id)
-        self.slider.set_value(float(position) / Gst.SECOND)
-        self.slider.handler_unblock(self._slider_handle_id)
-        return True
+            self.slider.handler_block(self._slider_handle_id)
+            self.slider.set_value(float(position) / Gst.SECOND)
+            self.lbl_pos.set_text(nsec2time(position))
+            self.slider.handler_unblock(self._slider_handle_id)
+            return True
         
     def _on_list_clicked(self, tree_view, path, column):
         self.play_index = int(path.get_indices()[0])
@@ -339,6 +350,7 @@ class VideoPlayer(Gtk.Window):
         if self.is_playing:
             self._on_stop_clicked(None)
         
+        self._set_uri()
         self._on_play_clicked(None)
         
     def _on_key_release(self, widget, eventkey):
@@ -379,10 +391,17 @@ class VideoPlayer(Gtk.Window):
             self.next_btn.set_sensitive(True)
             
         self._on_stop_clicked(None)
+        self._set_uri()
         self._on_play_clicked(None)
         
     def _on_rewind_clicked(self, widget):
-        pass
+        s, pos = self._player.query_position(Gst.Format.TIME)
+        if s:
+            if pos <= (10*Gst.SECOND):
+                pos = 0
+            else:
+                pos = pos - 10*Gst.SECOND
+            self.slider.set_value(float(pos)/ Gst.SECOND)
 
     def _on_play_clicked(self, widget):
         if not self.is_playing:
@@ -413,10 +432,21 @@ class VideoPlayer(Gtk.Window):
             self.play_btn.set_image(btn_img)
             
             self.is_playing = False
-            self._stop()        
+        self._stop()
+        self.slider.set_value(0.0)
 
     def _on_forward_clicked(self, widget):
-        pass
+        s, dur = self._player.query_duration(Gst.Format.TIME)
+        if not s:
+            return False
+        
+        s, pos = self._player.query_position(Gst.Format.TIME)
+        if s:
+            if pos >= (dur - (10*Gst.SECOND)):
+                pos = dur
+            else:
+                pos = pos + 10*Gst.SECOND
+            self.slider.set_value(float(pos)/Gst.SECOND)
 
     def _on_next_clicked(self, widget):
         self.play_index += 1        
@@ -428,6 +458,7 @@ class VideoPlayer(Gtk.Window):
             self.prev_btn.set_sensitive(True)
             
         self._on_stop_clicked(None)
+        self._set_uri()
         self._on_play_clicked(None)
     
     

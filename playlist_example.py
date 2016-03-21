@@ -1,9 +1,9 @@
-import gi, os, time
+import gi, os, sys, time
 gi.require_version('Gst', '1.0')
 gi.require_version('GstPbutils', '1.0')
 
 from gi.repository import GLib, Gst, Gtk, Gdk, GdkPixbuf
-from gi.repository import GstVideo, GstPbutils
+from gi.repository import GdkX11, GstVideo, GstPbutils
 
 from utils import nsec2time
 from urllib.request import pathname2url
@@ -43,8 +43,10 @@ class VideoPlayer(Gtk.Window):
             self.on_play_clicked(None)
             
     def get_videos(self):
-        playlist = ['sintel_trailer-480p.webm', 'SAM_1297.MP4', 'SAM_1298.MP4', 'SAM_1300.MP4']
-        #playlist = ['ladlaceydanny_2k.wmv', 'ladumawill_2k.wmv', 'rm11026_800.mp4', 'ultra_hot_big.mp4']
+        if sys.platform == 'linux':
+            playlist = ['ladlaceydanny_2k.wmv', 'ladumawill_2k.wmv', 'rm11026_800.mp4', 'ultra_hot_big.mp4']
+        else:
+            playlist = ['sintel_trailer-480p.webm', 'SAM_1297.MP4', 'SAM_1298.MP4', 'SAM_1300.MP4']
         
         info = None
          
@@ -116,6 +118,7 @@ class VideoPlayer(Gtk.Window):
         self.video_frame = Gtk.DrawingArea()
         self.video_frame.modify_bg(Gtk.StateType.NORMAL, Gdk.Color(0, 0, 0))
         self.video_frame.set_size_request(640, 480)
+        self.video_frame.set_double_buffered(False)
         vbox.pack_start(self.video_frame, True, True, 0)
         
         # play control
@@ -175,7 +178,11 @@ class VideoPlayer(Gtk.Window):
         
     def _create_controller(self):
         self._player = Gst.ElementFactory.make('playbin', 'videoplayer')
-        self._vidsink = Gst.ElementFactory.make('autovideosink', None)
+        if sys.platform == 'linux':
+            self._vidsink = Gst.ElementFactory.make('xvimagesink', None)
+        else:
+            self._vidsink = Gst.ElementFactory.make('d3dvideosink', None)
+            
         #self._vidsink.set_property('force-aspect-ratio', True)
         
         self._player.set_property('video-sink', self._vidsink)
@@ -200,7 +207,7 @@ class VideoPlayer(Gtk.Window):
         
         self.play_index = 0
         self._set_uri()
-        self.slider.set_value(0)
+        self.slider.set_value(0.0)
         
     def _set_uri(self):
         self._player.set_property('uri', 'file:'+pathname2url(os.path.abspath(os.path.join('.', self.playlist[self.play_index][0]))))
@@ -246,7 +253,7 @@ class VideoPlayer(Gtk.Window):
             self.on_stop_clicked(None)
         elif t == Gst.MessageType.EOS:
             print('Video Player :: EOS received')
-            self.slider.set_value(0)
+            self.slider.set_value(0.0)
             if len(self.playlist) > 1 and self.play_index < (len(self.playlist) - 1):
                 self.on_next_clicked(None)
             else:
@@ -355,7 +362,7 @@ class VideoPlayer(Gtk.Window):
                 pos = 0
             else:
                 pos = pos - 10*Gst.SECOND
-            self.slider.set_value(pos)
+            self.slider.set_value(float(pos)/ Gst.SECOND)
 
     def on_play_clicked(self, widget):
         if not self.is_playing:
@@ -365,7 +372,7 @@ class VideoPlayer(Gtk.Window):
             self.play_btn.set_image(btn_img)
             self._play()
             
-            self._timeout_id = GLib.timeout_add(100, self._update_slider)
+            self._timeout_id = GLib.timeout_add(1000, self._update_slider)
         else:
             self.is_playing = False
             btn_img = Gtk.Image()
@@ -386,7 +393,8 @@ class VideoPlayer(Gtk.Window):
             self.play_btn.set_image(btn_img)
             
             self.is_playing = False
-            self._stop()        
+        self._stop()
+        self.slider.set_value(0.0)
 
     def on_forward_clicked(self, widget):
         s, dur = self._player.query_duration(Gst.Format.TIME)
@@ -399,7 +407,7 @@ class VideoPlayer(Gtk.Window):
                 pos = dur
             else:
                 pos = pos + 10*Gst.SECOND
-            self.slider.set_value(pos)
+            self.slider.set_value(float(pos)/Gst.SECOND)
 
     def on_next_clicked(self, widget):
         self.play_index += 1
@@ -423,7 +431,7 @@ if __name__ == '__main__':
     
     vp = VideoPlayer()
     vp.connect('destroy', Gtk.main_quit)
-    vp.set_autostart(False)
+    #vp.set_autostart(False)
     vp.get_videos()
     vp.run()
     Gtk.main()
