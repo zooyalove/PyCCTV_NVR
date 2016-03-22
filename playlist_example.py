@@ -207,7 +207,7 @@ class VideoPlayer(Gtk.Window):
         
         self.play_index = 0
         self._set_uri()
-        self.slider.set_value(0.0)
+        #self.slider.set_value(0.0)
         
     def _set_uri(self):
         self._player.set_property('uri', 'file:'+pathname2url(os.path.abspath(os.path.join('.', self.playlist[self.play_index][0]))))
@@ -428,6 +428,7 @@ if __name__ == '__main__':
     
     GObject.threads_init()
     Gst.init(None)
+    GstPbutils.pb_utils_init()
     
     vp = VideoPlayer()
     vp.connect('destroy', Gtk.main_quit)

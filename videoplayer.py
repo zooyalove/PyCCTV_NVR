@@ -242,7 +242,7 @@ class VideoPlayer(Gtk.Window):
         
         self.play_index = 0
         self._set_uri()
-        self.slider.set_value(0.0)
+        #self.slider.set_value(0.0)
         
     def _set_uri(self):
         self._player.set_property('uri', 'file:'+pathname2url(os.path.join(self.app.config['VIDEO_PATH'], self.playlist[self.play_index][0])))
@@ -378,8 +378,8 @@ class VideoPlayer(Gtk.Window):
             if self.next_btn.get_sensitive():
                 self.next_btn.clicked()
 
-        print('%s key is released' % eventkey.keyval)
-        
+        else:
+            pass
 
     def _on_prev_clicked(self, widget):
         self.play_index -= 1
@@ -409,6 +409,7 @@ class VideoPlayer(Gtk.Window):
             btn_img = Gtk.Image()
             btn_img.set_from_stock(Gtk.STOCK_MEDIA_PAUSE, Gtk.IconSize.BUTTON)
             self.play_btn.set_image(btn_img)
+            self._change_duration()
             self._play()
             
             self._timeout_id = GLib.timeout_add(100, self._update_slider)
@@ -419,7 +420,6 @@ class VideoPlayer(Gtk.Window):
             self.play_btn.set_image(btn_img)
             self._pause()
             
-        self._change_duration()
         self._change_title()
         
         self.rewind_btn.set_sensitive(True)
