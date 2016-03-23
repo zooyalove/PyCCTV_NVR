@@ -1,5 +1,7 @@
-import gi, os, sys, time
+import gi, os, sys
 gi.require_version('Gst', '1.0')
+gi.require_version('Gtk', '3.0')
+gi.require_version('GstVideo', '1.0')
 gi.require_version('GstPbutils', '1.0')
 
 from gi.repository import GLib, Gst, Gtk, Gdk, GdkPixbuf
@@ -30,7 +32,7 @@ class VideoPlayer(Gtk.Window):
         self._create_controller()
         
     def set_autostart(self, autostart=True):
-        if autostart is not None and isinstance(autostart, bool):
+        if isinstance(autostart, bool):
             self.is_autostart = autostart
             
     def get_autostart(self):
@@ -183,8 +185,6 @@ class VideoPlayer(Gtk.Window):
         else:
             self._vidsink = Gst.ElementFactory.make('d3dvideosink', None)
             
-        #self._vidsink.set_property('force-aspect-ratio', True)
-        
         self._player.set_property('video-sink', self._vidsink)
         
         bus = self._player.get_bus()
@@ -274,14 +274,13 @@ class VideoPlayer(Gtk.Window):
             return False
         else:
             success, duration = self._player.query_duration(Gst.Format.TIME)
-            print(duration)
             if not success:
                 raise Exception("Couldn't fetch video duration")
             else:
                 self.slider.set_range(0, duration / Gst.SECOND)
+                self.lbl_dur.set_text(nsec2time(duration))
             
                 success, position = self._player.query_position(Gst.Format.TIME)
-                print(position)
                 if not success:
                     raise Exception("Couldn't fetch current video position to update slider")
         
@@ -380,7 +379,7 @@ class VideoPlayer(Gtk.Window):
             self.play_btn.set_image(btn_img)
             self._pause()
         
-        self._change_duration()
+        #self._change_duration()
         self._change_title()
         
         self.rewind_btn.set_sensitive(True)
@@ -425,7 +424,6 @@ class VideoPlayer(Gtk.Window):
     
 if __name__ == '__main__':
     from gi.repository import GObject
-    
     GObject.threads_init()
     Gst.init(None)
     GstPbutils.pb_utils_init()

@@ -20,11 +20,12 @@ class VideoPlayer(Gtk.Window):
         super(VideoPlayer, self).__init__(type=Gtk.WindowType.TOPLEVEL)
         
         self.app = app
-        self.playlist = []
-        self.play_index = -1
-        self.is_playing = False
-        self.is_autostart = True
+        self._playlist = []
+        self._play_index = -1
+        self._is_playing = False
+        self._is_autostart = True
         self._timeout_id = 0
+        self.play_xpm = (GdkPixbuf.Pixbuf.new_from_xpm_data(xpm_data.PLAY_MINI_BTN_HOVER), GdkPixbuf.Pixbuf.new_from_xpm_data(xpm_data.PAUSE_MINI_BTN_HOVER))
         
         self.set_title(self.player_title)
         self.set_border_width(2)
@@ -38,16 +39,16 @@ class VideoPlayer(Gtk.Window):
         self._create_controller()
         
     def set_autostart(self, autostart=True):
-        if autostart is not None and isinstance(autostart, bool):
-            self.is_autostart = autostart
+        if isinstance(autostart, bool):
+            self._is_autostart = autostart
             
     def get_autostart(self):
-        return self.is_autostart
+        return self._is_autostart
         
     def run(self):
         self.show_all()
         
-        if self.is_autostart:
+        if self._is_autostart:
             self._on_play_clicked(None)
         
     def _setupUI(self):
@@ -85,19 +86,19 @@ class VideoPlayer(Gtk.Window):
         # play control
         ctrl2_hbox = Gtk.HBox()
         
-        self.prev_btn = Gtk.Button()
-        self.rewind_btn = Gtk.Button()
-        self.play_btn = Gtk.Button()
-        self.stop_btn = Gtk.Button()
-        self.forward_btn = Gtk.Button()
-        self.next_btn = Gtk.Button()
+        self._prev_btn = Gtk.Button()
+        self._rewind_btn = Gtk.Button()
+        self._play_btn = Gtk.Button()
+        self._stop_btn = Gtk.Button()
+        self._forward_btn = Gtk.Button()
+        self._next_btn = Gtk.Button()
         
-        ctrl_buttons = ((self.prev_btn, Gtk.STOCK_MEDIA_PREVIOUS, u'이전 영상 <B>', self._on_prev_clicked, ),
-                        (self.rewind_btn, Gtk.STOCK_MEDIA_REWIND, u'10초전으로 <Right Arrow>', self._on_rewind_clicked),
-                        (self.play_btn, Gtk.STOCK_MEDIA_PLAY, u'재생 <Spacebar>', self._on_play_clicked),
-                        (self.stop_btn, Gtk.STOCK_MEDIA_STOP, u'정지 <S>', self._on_stop_clicked),
-                        (self.forward_btn, Gtk.STOCK_MEDIA_FORWARD, u'10초앞으로 <Left Arrow>', self._on_forward_clicked),
-                        (self.next_btn, Gtk.STOCK_MEDIA_NEXT, u'다음 영상 <N>', self._on_next_clicked))
+        ctrl_buttons = ((self._prev_btn, Gtk.STOCK_MEDIA_PREVIOUS, u'이전 영상 <B>', self._on_prev_clicked, ),
+                        (self._rewind_btn, Gtk.STOCK_MEDIA_REWIND, u'10초전으로 <Right Arrow>', self._on_rewind_clicked),
+                        (self._play_btn, Gtk.STOCK_MEDIA_PLAY, u'재생 <Spacebar>', self._on_play_clicked),
+                        (self._stop_btn, Gtk.STOCK_MEDIA_STOP, u'정지 <S>', self._on_stop_clicked),
+                        (self._forward_btn, Gtk.STOCK_MEDIA_FORWARD, u'10초앞으로 <Left Arrow>', self._on_forward_clicked),
+                        (self._next_btn, Gtk.STOCK_MEDIA_NEXT, u'다음 영상 <N>', self._on_next_clicked))
         
         for btn, st_img, tooltip, clickfunc in ctrl_buttons:
             btn_img = Gtk.Image()
@@ -190,7 +191,7 @@ class VideoPlayer(Gtk.Window):
                             
                     if info is not None and isinstance(info, GstPbutils.DiscovererInfo):
                         video_count = video_count + 1
-                        self.playlist.append([filename, info.get_duration()])
+                        self._playlist.append([filename, info.get_duration()])
                         self.store.append([filename, nsec2time(info.get_duration())])
                         info = None
 
@@ -209,9 +210,9 @@ class VideoPlayer(Gtk.Window):
         return True
         
     def _exit(self):
-        del self.playlist
+        del self._playlist
         self._stop()
-        self.bus.unref()
+        self._bus.unref()
         self._player.unref()
         self._timeout_id = 0
         
@@ -222,36 +223,36 @@ class VideoPlayer(Gtk.Window):
         
         self._player.set_property('video-sink', self._vidsink)
         
-        self.bus = self._player.get_bus()
-        self.bus.add_signal_watch()
-        self.bus.enable_sync_message_emission()
+        self._bus = self._player.get_bus()
+        self._bus.add_signal_watch()
+        self._bus.enable_sync_message_emission()
         
-        self.bus.connect('message', self._on_message)
-        self.bus.connect('sync-message::element', self._on_sync_message)
+        self._bus.connect('message', self._on_message)
+        self._bus.connect('sync-message::element', self._on_sync_message)
     
     def _create_model(self):
         store = Gtk.ListStore(str, str)
         return store
     
     def _init_controller(self):
-        if len(self.playlist) > 1:
-            self.next_btn.set_sensitive(True)
+        if len(self._playlist) > 1:
+            self._next_btn.set_sensitive(True)
             
-        self.play_btn.set_sensitive(True)
-        self.stop_btn.set_sensitive(True)
+        self._play_btn.set_sensitive(True)
+        self._stop_btn.set_sensitive(True)
         
-        self.play_index = 0
+        self._play_index = 0
         self._set_uri()
         #self.slider.set_value(0.0)
         
     def _set_uri(self):
-        self._player.set_property('uri', 'file:'+pathname2url(os.path.join(self.app.config['VIDEO_PATH'], self.playlist[self.play_index][0])))
+        self._player.set_property('uri', 'file:'+pathname2url(os.path.join(self.app.config['VIDEO_PATH'], self._playlist[self._play_index][0])))
                 
     def _change_duration(self):
-        self.lbl_dur.set_text(nsec2time(self.playlist[self.play_index][1]))
+        self.lbl_dur.set_text(nsec2time(self._playlist[self._play_index][1]))
         
     def _change_title(self):
-        self.set_title(self.playlist[self.play_index][0] + ' - ' + self.player_title)
+        self.set_title(self._playlist[self._play_index][0] + ' - ' + self.player_title)
         
     def _play(self):
         self._player.set_state(Gst.State.PLAYING)
@@ -263,16 +264,16 @@ class VideoPlayer(Gtk.Window):
         self._player.set_state(Gst.State.NULL)
 
     def _pixbuf_play_state(self, column, cell, model, iter, data):
-        if self.play_index == -1:
+        if self._play_index == -1:
             pb = None
         else:
-            if self.play_index != model.get_path(iter).get_indices()[0]:
+            if self._play_index != model.get_path(iter).get_indices()[0]:
                 pb = None
             else:
-                if self.is_playing:
-                    pb = GdkPixbuf.Pixbuf.new_from_xpm_data(xpm_data.PLAY_MINI_BTN_HOVER)
+                if self._is_playing:
+                    pb = self.play_xpm[0]
                 else:
-                    pb = GdkPixbuf.Pixbuf.new_from_xpm_data(xpm_data.PAUSE_MINI_BTN_HOVER)
+                    pb = self.play_xpm[1]
         
         cell.set_property('pixbuf', pb)
         return
@@ -289,7 +290,7 @@ class VideoPlayer(Gtk.Window):
         elif t == Gst.MessageType.EOS:
             print('Video Player :: EOS received')
             self.slider.set_value(0.0)
-            if len(self.playlist) > 1 and self.play_index < (len(self.playlist) - 1):
+            if len(self._playlist) > 1 and self._play_index < (len(self._playlist) - 1):
                 self._on_next_clicked(None)
             else:
                 self._on_stop_clicked(None)
@@ -304,7 +305,7 @@ class VideoPlayer(Gtk.Window):
         self._player.seek_simple(Gst.Format.TIME, Gst.SeekFlags.FLUSH | Gst.SeekFlags.KEY_UNIT, seek_time * Gst.SECOND)
         
     def _update_slider(self):
-        if not self.is_playing:
+        if not self._is_playing:
             return False
         
         else:
@@ -325,29 +326,29 @@ class VideoPlayer(Gtk.Window):
             return True
         
     def _on_list_clicked(self, tree_view, path, column):
-        self.play_index = int(path.get_indices()[0])
+        self._play_index = int(path.get_indices()[0])
         
-        if self.play_index <= 0:
-            self.prev_btn.set_sensitive(False)
+        if self._play_index <= 0:
+            self._prev_btn.set_sensitive(False)
             
-            if len(self.playlist) > 1:
-                if not self.next_btn.get_sensitive():
-                    self.next_btn.set_sensitive(True)
-        elif self.play_index == (len(self.playlist) - 1):
-            self.next_btn.set_sensitive(False)
+            if len(self._playlist) > 1:
+                if not self._next_btn.get_sensitive():
+                    self._next_btn.set_sensitive(True)
+        elif self._play_index == (len(self._playlist) - 1):
+            self._next_btn.set_sensitive(False)
             
-            if len(self.playlist) > 1:
-                if not self.prev_btn.get_sensitive():
-                    self.prev_btn.set_sensitive(True)
+            if len(self._playlist) > 1:
+                if not self._prev_btn.get_sensitive():
+                    self._prev_btn.set_sensitive(True)
         else:
-            if len(self.playlist) > 1:
-                if not self.next_btn.get_sensitive():
-                    self.next_btn.set_sensitive(True)
+            if len(self._playlist) > 1:
+                if not self._next_btn.get_sensitive():
+                    self._next_btn.set_sensitive(True)
             
-                if not self.prev_btn.get_sensitive():
-                    self.prev_btn.set_sensitive(True)
+                if not self._prev_btn.get_sensitive():
+                    self._prev_btn.set_sensitive(True)
             
-        if self.is_playing:
+        if self._is_playing:
             self._on_stop_clicked(None)
         
         self._set_uri()
@@ -355,40 +356,40 @@ class VideoPlayer(Gtk.Window):
         
     def _on_key_release(self, widget, eventkey):
         if eventkey.keyval == Gdk.KEY_b:
-            if self.prev_btn.get_sensitive():
-                self.prev_btn.clicked()
+            if self._prev_btn.get_sensitive():
+                self._prev_btn.clicked()
 
         elif eventkey.keyval == Gdk.KEY_Left:
-            if self.rewind_btn.get_sensitive():
-                self.rewind_btn.clicked()
+            if self._rewind_btn.get_sensitive():
+                self._rewind_btn.clicked()
 
         elif eventkey.keyval == Gdk.KEY_Right:
-            if self.forward_btn.get_sensitive():
-                self.forward_btn.clicked()
+            if self._forward_btn.get_sensitive():
+                self._forward_btn.clicked()
             
         elif eventkey.keyval == Gdk.KEY_space:
-            if self.play_btn.get_sensitive():
-                self.play_btn.clicked()
+            if self._play_btn.get_sensitive():
+                self._play_btn.clicked()
             
         elif eventkey.keyval == Gdk.KEY_s:
-            if self.stop_btn.get_sensitive():
-                self.stop_btn.clicked()
+            if self._stop_btn.get_sensitive():
+                self._stop_btn.clicked()
                 
         elif eventkey.keyval == Gdk.KEY_n:
-            if self.next_btn.get_sensitive():
-                self.next_btn.clicked()
+            if self._next_btn.get_sensitive():
+                self._next_btn.clicked()
 
         else:
             pass
 
     def _on_prev_clicked(self, widget):
-        self.play_index -= 1
+        self._play_index -= 1
         
-        if self.play_index <= 0:
-            self.prev_btn.set_sensitive(False)
+        if self._play_index <= 0:
+            self._prev_btn.set_sensitive(False)
             
-        if not self.next_btn.get_sensitive():
-            self.next_btn.set_sensitive(True)
+        if not self._next_btn.get_sensitive():
+            self._next_btn.set_sensitive(True)
             
         self._on_stop_clicked(None)
         self._set_uri()
@@ -404,34 +405,34 @@ class VideoPlayer(Gtk.Window):
             self.slider.set_value(float(pos)/ Gst.SECOND)
 
     def _on_play_clicked(self, widget):
-        if not self.is_playing:
-            self.is_playing= True
+        if not self._is_playing:
+            self._is_playing= True
             btn_img = Gtk.Image()
             btn_img.set_from_stock(Gtk.STOCK_MEDIA_PAUSE, Gtk.IconSize.BUTTON)
-            self.play_btn.set_image(btn_img)
+            self._play_btn.set_image(btn_img)
             self._change_duration()
             self._play()
             
             self._timeout_id = GLib.timeout_add(100, self._update_slider)
         else:
-            self.is_playing = False
+            self._is_playing = False
             btn_img = Gtk.Image()
             btn_img.set_from_stock(Gtk.STOCK_MEDIA_PLAY, Gtk.IconSize.BUTTON)
-            self.play_btn.set_image(btn_img)
+            self._play_btn.set_image(btn_img)
             self._pause()
             
         self._change_title()
         
-        self.rewind_btn.set_sensitive(True)
-        self.forward_btn.set_sensitive(True)
+        self._rewind_btn.set_sensitive(True)
+        self._forward_btn.set_sensitive(True)
 
     def _on_stop_clicked(self, widget):
-        if self.is_playing:
+        if self._is_playing:
             btn_img = Gtk.Image()
             btn_img.set_from_stock(Gtk.STOCK_MEDIA_PLAY, Gtk.IconSize.BUTTON)
-            self.play_btn.set_image(btn_img)
+            self._play_btn.set_image(btn_img)
             
-            self.is_playing = False
+            self._is_playing = False
         self._stop()
         self.slider.set_value(0.0)
 
@@ -449,13 +450,13 @@ class VideoPlayer(Gtk.Window):
             self.slider.set_value(float(pos)/Gst.SECOND)
 
     def _on_next_clicked(self, widget):
-        self.play_index += 1        
+        self._play_index += 1        
         
-        if self.play_index == (len(self.playlist) - 1):
-            self.next_btn.set_sensitive(False)
+        if self._play_index == (len(self._playlist) - 1):
+            self._next_btn.set_sensitive(False)
             
-        if not self.prev_btn.get_sensitive():
-            self.prev_btn.set_sensitive(True)
+        if not self._prev_btn.get_sensitive():
+            self._prev_btn.set_sensitive(True)
             
         self._on_stop_clicked(None)
         self._set_uri()
