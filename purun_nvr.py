@@ -106,14 +106,14 @@ class PurunNVR(object):
         self.config['Timeout'] = 30 * 60
             
         self.pb = Pushbullet(PB_API_KEY) 
-        self.setupUI()
+        self._setupUI()
 
         #cam1 = CameraWidget("CAM1", source={'ip':'192.168.0.81', 'port':6001}, dest={'ip':'192.168.0.79', 'port':5001})
         #self.manager.add_camera(cam1)
         cam1 = CameraWidget(self, "CAM1", source=None, dest=None)
         self.manager.add_camera(cam1)
         
-    def setupUI(self):
+    def _setupUI(self):
         self.win = Gtk.Window(title="PyCCTV NVR")
         self.win.set_position(Gtk.WindowPosition.CENTER)
         self.win.set_size_request(660, 500)
