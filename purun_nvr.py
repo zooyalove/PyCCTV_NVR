@@ -6,10 +6,10 @@ import gi
 gi.require_version('Gst', '1.0')
 
 from gi.repository import Gst, GObject, Gtk, Gdk
-#from gi.repository import GdkX11, GstVideo
 
 from pushbullet import Pushbullet
 
+from splashscreen import Splashscreen
 from nvrmanager import NvrManager
 from camerawidget import CameraWidget 
 
@@ -115,6 +115,7 @@ class PurunNVR(object):
         
     def _setupUI(self):
         self.win = Gtk.Window(title="PyCCTV NVR")
+        self.win.set_default_icon_from_file(os.path.abspath(os.path.join(os.path.dirname(__file__), 'resources', 'purun_nvr_16.png')))
         self.win.set_position(Gtk.WindowPosition.CENTER)
         self.win.set_size_request(660, 500)
         self.win.set_border_width(5)
@@ -163,6 +164,12 @@ if __name__ == "__main__":
     GObject.threads_init()
     Gdk.threads_init()
     Gst.init(None)
+    
+    spl = Splashscreen('purun_nvr.png')
+    while Gtk.events_pending():
+        Gtk.main_iteration()
 
     app = PurunNVR()
+    spl.destroy()
     app.start()
+    
