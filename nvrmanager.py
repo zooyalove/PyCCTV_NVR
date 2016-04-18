@@ -43,11 +43,11 @@ class NvrManager(Gtk.VBox):
             
             m2 = Gtk.Menu()
             day_view = Gtk.MenuItem('일자별 보기')
-            day_view.connect('activated', self.on_dayview_activated, data)
+            day_view.connect('activate', self.on_dayview_activated, data)
             m2.append(day_view)
             
             time_view = Gtk.MenuItem('시간대별 보기')
-            time_view.connect('activated', self.on_timeview_activated, data)
+            time_view.connect('activate', self.on_timeview_activated, data)
             m2.append(time_view)
             
             video_menu = Gtk.MenuItem('영상')
@@ -55,7 +55,7 @@ class NvrManager(Gtk.VBox):
             m.append(video_menu)
             
             img_view = Gtk.MenuItem('촬영된 사진보기')
-            img_view.connect('activated', self.on_imgview_activate, data)
+            img_view.connect('activate', self.on_imgview_activated, data)
             m.append(img_view)
             
             m.show_all()

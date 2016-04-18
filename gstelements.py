@@ -1,8 +1,10 @@
-import os, time
+import os
+import time
 from datetime import datetime
 
 import gi
 gi.require_version('Gst', '1.0')
+gi.require_version('GstApp', '1.0')
 
 from gi.repository import GObject, Gst, Gdk, GLib, GstApp
 from pushbullet import Pushbullet

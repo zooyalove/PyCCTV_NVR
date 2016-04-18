@@ -1,84 +1,22 @@
 #!/usr/bin/python3
 
-import sys, os, threading, time
-
+import sys
+import os
 import gi
 gi.require_version('Gst', '1.0')
+gi.require_version('Gtk', '3.0')
 
-from gi.repository import Gst, GObject, Gtk, Gdk
-
-from pushbullet import Pushbullet
+from gi.repository import GObject
+from gi.repository import Gst
+from gi.repository import Gtk
+from gi.repository import Gdk
 
 from splashscreen import Splashscreen
-from nvrmanager import NvrManager
-from camerawidget import CameraWidget 
+from preferences import Preferences
+from nvrwindow import NvrWindow
 
 PB_API_KEY = 'o.cJzinoZ3SdlW7JxYeDm7tbIrueQAW5aK'
 
-class NvrController(threading.Thread):
-    def __init__(self, mntdir):
-        super(NvrController, self).__init__()
-        
-        self.sleepTime = 30 #minute
-        
-        self.mntdir = mntdir
-        
-        self.panel = Gtk.VBox()
-        
-        self.lvlHDD = Gtk.LevelBar()
-        self.lvlHDD.set_min_value(0.0)
-        self.lvlHDD.set_max_value(1.0)
-        self.lvlHDD.set_value(0.0)
-        self.lvlHDD.set_size_request(250, -1)
-        self.lvlHDD.set_margin_left(10)
-        self.lvlHDD.set_margin_right(10)
-        self.panel.pack_start(self.lvlHDD, False, False, 5)
-        
-        self.lblHdd_Percent = Gtk.Label()
-        self.lblHdd_Percent.set_text("Usage / Total - 0%")
-        self.panel.pack_start(self.lblHdd_Percent, True, False, 0)
-        
-        
-    def run(self):
-        while True:
-            self.calculate_diskusage()
-            time.sleep(self.sleepTime * 60)
-    
-    def get_panel(self):
-        return self.panel
-    
-    def calculate_diskusage(self):
-        if hasattr(os, 'statvfs'):
-            st = os.statvfs(self.mntdir)
-            total = st.f_blocks * st.f_frsize
-            used = (st.f_blocks - st.f_bfree) * st.f_frsize
-        else:
-            import ctypes
-            _, total, free = ctypes.c_ulonglong(), ctypes.c_ulonglong(), ctypes.c_ulonglong()
-            fun = ctypes.windll.kernel32.GetDiskFreeSpaceExW
-            ret = fun(self.mntdir, ctypes.byref(_), ctypes.byref(total), ctypes.byref(free))
-            if ret == 0:
-                raise ctypes.WinError()
-            used = total.value - free.value
-            total = total.value
-        
-        f = round(used/total, 3)
-        percentage = "%0.1f" % (f * 100)
-        
-        self.lvlHDD.set_value(f)
-        self.lblHdd_Percent.set_text("Usage {0} / Total {1} - {2}%".format(self.calculate_disksize(used), self.calculate_disksize(total), percentage))
-    
-    def calculate_disksize(self, dsize):
-        dsize_format = ('Byte','KB', 'MB', 'GB', 'TB')
-        count = 0
-        
-        while dsize >= 1024:
-            dsize = round(float(dsize) / 1024, 1)
-            count += 1
-        
-        return '%0.1f%s' % (dsize, dsize_format[count])
-    
-        
 """
     - PurunNVR 클래스의 기능 -
         > 화면 보이기
@@ -92,8 +30,8 @@ class PurunNVR(object):
     APP_PATH = os.path.abspath(os.path.dirname(__file__))
     RESOURCE_PATH = os.path.join(APP_PATH, 'resources')
     
-    def __init__(self, mntdir=None):
-        self.config = {}
+    def __init__(self):
+        '''self.config = {}
         if mntdir is None:
             self.config['VIDEO_PATH'] = os.path.join(self.APP_PATH, 'videos')
             self.config['SNAPSHOT_PATH'] = os.path.join(self.APP_PATH, 'snapshot')
@@ -103,62 +41,19 @@ class PurunNVR(object):
         
         self.config['SNAPSHOT_PREFIX'] = 'sshot_'
         self.config['Motion'] = True
-        self.config['Timeout'] = 30 * 60
+        self.config['Timeout'] = 30 * 60'''
             
-        self.pb = Pushbullet(PB_API_KEY) 
+        #self.pb = Pushbullet(PB_API_KEY)
+        self.pref = Preferences()
         self._setupUI()
 
-        #cam1 = CameraWidget("CAM1", source={'ip':'192.168.0.81', 'port':6001}, dest={'ip':'192.168.0.79', 'port':5001})
-        #self.manager.add_camera(cam1)
-        cam1 = CameraWidget(self, "CAM1", source=None, dest=None)
-        self.manager.add_camera(cam1)
-        
     def _setupUI(self):
-        self.win = Gtk.Window(title="PyCCTV NVR")
-        self.win.set_default_icon_from_file(os.path.abspath(os.path.join(os.path.dirname(__file__), 'resources', 'purun_nvr_16.png')))
-        self.win.set_position(Gtk.WindowPosition.CENTER)
-        self.win.set_size_request(660, 500)
-        self.win.set_border_width(5)
-        self.win.connect('destroy', self.quit)
-        
-        vbox = Gtk.VBox()
-        self.win.add(vbox)
-        
-        self.manager = NvrManager(self)
-        vbox.add(self.manager)
+        self.win = NvrWindow(self)
 
-        hbox = Gtk.HBox()
-        vbox.pack_end(hbox, False, False, 10)
-        
-        hbox.pack_start(Gtk.Label(), True, True, 0)
-        
-        image = Gtk.Image()
-        image.set_from_stock(Gtk.STOCK_QUIT, Gtk.IconSize.BUTTON)
-        quitBtn = Gtk.Button()
-        quitBtn.set_image(image)
-        quitBtn.set_margin_right(10)
-        quitBtn.set_tooltip_text('프로그램 끝내기')
-        quitBtn.connect('clicked', self.quit)
-        hbox.pack_end(quitBtn, False, False, 0)
-        
-        if os.name == 'nt':
-            self.controller = NvrController('D:\\')
-        else:
-            self.controller = NvrController('/home/zia')
-
-        self.controller.setDaemon(True)
-        hbox.pack_end(self.controller.get_panel(), False, False, 0)
-        
     def start(self):
-        self.win.show_all()
-        self.manager.start()
-        self.controller.start()
+        self.win.start()
         Gtk.main()
                 
-    def quit(self, widget):
-        self.manager.stop()
-        Gtk.main_quit()
-        
                 
 if __name__ == "__main__":
     GObject.threads_init()
