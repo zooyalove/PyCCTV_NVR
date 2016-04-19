@@ -4,11 +4,11 @@ Created on 2016. 4. 18.
 @author: zia
 
 '''
-from gi.repository import Gtk
-
 import os
 import gi
 gi.require_version('Gtk', '3.0')
+
+from gi.repository import Gtk
 
 DEFAULT_PATH = os.path.abspath(os.path.dirname(__file__))
 DEFAULT_PREF = '''<preferences>
@@ -17,9 +17,21 @@ DEFAULT_PREF = '''<preferences>
             <token></token>
             <channel></channel>
         </pushbullet>
-        <email use="0"></email>
+        <email use="0">
+            <smtpsrv-addr>smtp.gmail.com</smtpsrv-addr>
+            <smtpsrv-port></smtpsrv-port>
+            <from></from>
+            <to></to>
+            <subject></subject>
+            <msg-body</msg-body>
+        </email>
     </service-provider>
-    <video-period period="30">10</video-period>
+    <video>
+        <period>30</period>
+        <timeout>10</timeout>
+        <motion>1</motion>
+    </video>
+    <snapshot prefix="sshot_" />
     <save-dir>%s</save-dir>
     <>
     <>

@@ -1,6 +1,11 @@
 #!/usr/bin/python3
 # -*- coding:utf-8 -*-
 
+import os
+import gi
+gi.require_version('Gst', '1.0')
+gi.require_version('Gtk', '3.0')
+
 from gi.repository import GObject
 from gi.repository import Gst
 from gi.repository import Gtk
@@ -9,11 +14,6 @@ from gi.repository import Gdk
 from splashscreen import Splashscreen
 from preferences import Preferences
 from nvrwindow import NvrWindow
-
-import os
-import gi
-gi.require_version('Gst', '1.0')
-gi.require_version('Gtk', '3.0')
 
 PB_API_KEY = 'o.cJzinoZ3SdlW7JxYeDm7tbIrueQAW5aK'
 
