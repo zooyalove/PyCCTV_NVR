@@ -1,5 +1,3 @@
-from gi.repository import GLib, Gst, Gtk, Gdk, GdkPixbuf
-from gi.repository import GdkX11, GstVideo, GstPbutils
 from utils import nsec2time
 from urllib.request import pathname2url
 
@@ -11,6 +9,9 @@ import gi
 gi.require_version('GLib', '2.0')
 gi.require_version('Gst', '1.0')
 gi.require_version('GstPbutils', '1.0')
+
+from gi.repository import GLib, Gst, Gtk, Gdk, GdkPixbuf
+from gi.repository import GdkX11, GstVideo, GstPbutils
 
 
 class VideoPlayer(Gtk.Window):
