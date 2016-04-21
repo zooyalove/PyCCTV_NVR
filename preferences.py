@@ -11,9 +11,11 @@ gi.require_version('Gtk', '3.0')
 import xml.etree.ElementTree as ET
 
 from gi.repository import Gtk
+from pushbullet import Pushbullet, InvalidKeyError
 
 DEFAULT_PATH = os.path.abspath(os.path.dirname(__file__))
-DEFAULT_PREF = '''<preferences>
+DEFAULT_PREF = '''<?xml version="1.0" encoding="UTF-8" ?>
+<preferences>
     <general>
         <period>30</period>
         <save_dir>%s</save_dir>
@@ -21,7 +23,8 @@ DEFAULT_PREF = '''<preferences>
     <service_provider>
         <pushbullet use="0">
             <token></token>
-            <channel></channel>
+            <channels>
+            </channels>
         </pushbullet>
         <email use="0">
             <smtpsrv_addr>smtp.gmail.com</smtpsrv_addr>
@@ -31,7 +34,7 @@ DEFAULT_PREF = '''<preferences>
             <from></from>
             <to></to>
             <subject></subject>
-            <msg_body</msg_body>
+            <msg_body></msg_body>
         </email>
     </service_provider>
     <video>
@@ -52,7 +55,7 @@ def xml_parse(source):
         exists = True
     else:
         data = ET.fromstring(DEFAULT_PREF)
-    return exists, data.getroot()
+    return exists, data
 
 
 class Preferences(object):
@@ -74,22 +77,21 @@ class Preferences(object):
 
     def _data_init(self):
         # self._exists, self._data = xml_parse(self._file)
-        pass
+        self._exists, self._data = xml_parse(DEFAULT_PREF)
 
     def _get_preferences(self):
         pass
 
     def _create_ui(self, data):
-        print(data)
         notebook = Gtk.Notebook()
 
-        general = self._create_general()
+        general = self._create_general(data.find("general"))
         notebook.append_page(general, Gtk.Label(u'일반'))
 
-        video = self._create_video()
+        video = self._create_video(data.find("video"))
         notebook.append_page(video, Gtk.Label(u'영상'))
 
-        snapshot = self._create_snapshot()
+        snapshot = self._create_snapshot([data.find("snapshot"), data.find("service_provider")])
         notebook.append_page(snapshot, Gtk.Label(u'사진'))
 
         notebook.connect('switch-page', self._on_switch_page)
@@ -107,37 +109,73 @@ class Preferences(object):
         vbox.pack_start(sep, False, True, 5)
         return vbox
 
-    def _create_general(self):
+    def _create_general(self, general_data):
         vbox = self._create_top_label(u'일반 :')
         return vbox
 
-    def _create_video(self):
+    def _create_video(self, video_data):
         vbox = self._create_top_label(u'영상 :')
         return vbox
 
-    def _create_snapshot(self):
+    def _create_snapshot(self, sshot_datalist):
+        sshot_data, svc_data = sshot_datalist[0], sshot_datalist[1]
+
         vbox = self._create_top_label(u'사진 :')
 
-        pb_frame = self._create_pushbullet()
+        pb_frame = self._create_pushbullet(svc_data.find("pushbullet"))
         vbox.pack_start(pb_frame, True, True, 10)
 
-        em_frame = self._create_email()
+        em_frame = self._create_email(svc_data.find("email"))
         vbox.pack_start(em_frame, True, True, 10)
         return vbox
 
-    def _create_pushbullet(self):
+    def _create_pushbullet(self, pb_data):
         pb_frame = Gtk.Frame(label='Pushbullet')
         pb_vbox = Gtk.VBox()
-        self._pb_check = Gtk.CheckButton(u"사용")
+
+        self._pb_check = Gtk.CheckButton(u'사용')
+        self._pb_check.set_active(bool(int(pb_data.get('use'))))
         pb_vbox.pack_start(self._pb_check, False, False, 5)
+
+        tkn_hbox = Gtk.HBox()
+
+        tkn_hbox.pack_start(Gtk.Label('Access Token Key : '), False, False, 5)
+
+        self._tkn_key = Gtk.Entry()
+        if pb_data.find("token").text is not None:
+            self._tkn_key.set_text(pb_data.find("token").text)
+        tkn_hbox.pack_start(self._tkn_key, True, True, 1)
+
+        verify_btn = Gtk.Button('Verify')
+        tkn_hbox.pack_start(verify_btn, False, True, 5)
+        pb_vbox.pack_start(tkn_hbox, True, True, 5)
+
+        channel_hbox = Gtk.HBox()
+
+        channel_hbox.pack_start(Gtk.Label('Channels : '), False, False, 5)
+
+        self._pb_channel = Gtk.ComboBox()
+        channels = pb_data.find('channels')
+        print(channels.findall('channel'))
+        channel_hbox.pack_start(self._pb_channel, False, False, 5)
+
+        pb_vbox.pack_start(channel_hbox, True, True, 5)
         pb_frame.add(pb_vbox)
+
+        if not self._pb_check.get_active():
+            for widget in (self._tkn_key, verify_btn):
+                widget.set_sensitive(False)
+
         return pb_frame
 
-    def _create_email(self):
+    def _create_email(self, em_data):
         em_frame = Gtk.Frame(label='E-mail')
         em_vbox = Gtk.VBox()
-        self._em_check = Gtk.CheckButton(u"사용")
+
+        self._em_check = Gtk.CheckButton(u'사용')
+        self._em_check.set_active(bool(int(em_data.get('use'))))
         em_vbox.pack_start(self._em_check, False, False, 5)
+
         em_frame.add(em_vbox)
         return em_frame
 
@@ -183,5 +221,6 @@ class Preferences(object):
         return self._get_preferences()
 
 if __name__ == '__main__':
+    print(DEFAULT_PREF)
     pref = Preferences(None, parent=Gtk.Window(Gtk.WindowType.TOPLEVEL))
     pref.run()
