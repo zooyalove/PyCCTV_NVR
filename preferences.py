@@ -24,7 +24,7 @@ DEFAULT_PREF = '''<?xml version="1.0" encoding="UTF-8" ?>
     </general>
     <service_provider>
         <pushbullet use="0">
-            <token></token>
+            <token verified="0"></token>
             <channels>
             </channels>
         </pushbullet>
@@ -158,9 +158,21 @@ class Preferences(object):
 
         channel_hbox.pack_start(Gtk.Label('Channels : '), False, False, 5)
 
-        self._pb_channel = Gtk.ComboBox()
+        self._channel_store = Gtk.ListStore(int, str, str)
+        self._pb_channel = Gtk.ComboBox.new_with_model(self._channel_store)
+        renderer_text = Gtk.CellRendererText()
+        self._pb_channel.pack_start(renderer_text, True)
+        self._pb_channel.add_attribute(renderer_text, 'text', 1)
+
         channels = pb_data.find('channels')
-        print(channels.findall('channel'))
+        row_count = -1
+        for channel in channels.findall('channel'):
+            row_count = row_count + 1
+            self._append_channel_store([int(channel.get('use')), channel.text, channel.get('tag')])
+            if int(channel.get('use')) == 1:
+                self._pb_channel.set_active(row_count)
+        del row_count
+
         channel_hbox.pack_start(self._pb_channel, False, False, 5)
 
         pb_vbox.pack_start(channel_hbox, True, True, 5)
@@ -169,10 +181,14 @@ class Preferences(object):
         self._pb_check.connect('toggled', self._on_pb_check_toggled)
         self._tkn_key.connect('changed', self._on_token_key_changed)
         self._verify_btn.connect('clicked', self._on_verify_clicked)
+        self._pb_channel.connect('changed', self._on_channel_combo_changed)
 
         self._on_pb_check_toggled(None)
 
         return pb_frame
+
+    def _append_channel_store(self, data=[]):
+        self._channel_store.append(data)
 
     def _create_email(self, em_data):
         em_frame = Gtk.Frame(label='E-mail')
@@ -190,6 +206,7 @@ class Preferences(object):
             self._verify_btn.set_sensitive(False)
         else:
             self._verify_btn.set_sensitive(True)
+        self._verified = False
 
     def _on_pb_check_toggled(self, check, data=None):
         checked = self._pb_check.get_active()
@@ -205,18 +222,29 @@ class Preferences(object):
         except InvalidKeyError as err:
             self._tkn_key.set_icon_from_stock(Gtk.EntryIconPosition.PRIMARY, Gtk.STOCK_DIALOG_ERROR)
             self._verified = False
+            self._channel_store.clear()
             print(type(err))
             print(err.args)
         else:
             self._tkn_key.set_icon_from_stock(Gtk.EntryIconPosition.PRIMARY, Gtk.STOCK_APPLY)
             self._verified = True
-            print(pb.devices)
+            self._channel_store.clear()
+            print(pb.channels)
+            for channel in pb.channels:
+                self._append_channel_store([0, channel.name, channel.channel_tag])
+
+    def _on_channel_combo_changed(self, combo):
+        tree_iter = combo.get_active_iter()
+        if tree_iter is not None:
+            model = combo.get_model()
+            use, name, tag = model[tree_iter][:3]
+            print(use, name, tag)
 
     def _on_switch_page(self, notebook, page, page_num):
         if page_num == 2:
-            self._prefdlg.resize(400, 500)
+            self._prefdlg.resize(500, 500)
         else:
-            self._prefdlg.resize(400, 300)
+            self._prefdlg.resize(500, 300)
 
     def is_exists(self):
         return self._exists
