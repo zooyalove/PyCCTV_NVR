@@ -11,7 +11,8 @@ gi.require_version('Gtk', '3.0')
 import xml.etree.ElementTree as ET
 
 from gi.repository import Gtk
-from pushbullet import Pushbullet, InvalidKeyError
+from pushbullet import Pushbullet
+from pushbullet.errors import InvalidKeyError, PushbulletError
 
 DEFAULT_PATH = os.path.abspath(os.path.dirname(__file__))
 DEFAULT_PREF = '''<?xml version="1.0" encoding="UTF-8" ?>
@@ -72,6 +73,7 @@ class Preferences(object):
         self._parent = parent
         self._data = None
         self._exists = False
+        self._verified = False
 
         self._data_init()
 
@@ -162,9 +164,10 @@ class Preferences(object):
         pb_vbox.pack_start(channel_hbox, True, True, 5)
         pb_frame.add(pb_vbox)
 
-        if not self._pb_check.get_active():
-            for widget in (self._tkn_key, verify_btn):
-                widget.set_sensitive(False)
+        self._pb_check.connect('toggled', self._on_pb_check_toggled, (self._tkn_key, verify_btn))
+        verify_btn.connect('clicked', self._on_verify_clicked)
+
+        self._on_pb_check_toggled(None, (self._tkn_key, verify_btn))
 
         return pb_frame
 
@@ -178,6 +181,27 @@ class Preferences(object):
 
         em_frame.add(em_vbox)
         return em_frame
+
+    def _on_pb_check_toggled(self, check, enable_widget=None):
+        checked = self._pb_check.get_active()
+        for widget in enable_widget:
+            widget.set_sensitive(checked)
+
+    def _on_verify_clicked(self, btn):
+        token = self._tkn_key.get_text()
+        try:
+            pb = Pushbullet(token)
+        except InvalidKeyError as err:
+            print(type(err))
+            print(err)
+
+        except PushbulletError as err:
+            print(type(err))
+            print(str(err))
+
+        else:
+            self._verified = True
+            print(pb.devices)
 
     def _on_switch_page(self, notebook, page, page_num):
         if page_num == 2:
