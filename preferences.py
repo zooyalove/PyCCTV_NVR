@@ -11,6 +11,7 @@ gi.require_version('Gtk', '3.0')
 import xml.etree.ElementTree as ET
 
 from gi.repository import Gtk
+from gi.repository import GdkPixbuf
 from pushbullet import Pushbullet
 from pushbullet.errors import InvalidKeyError, PushbulletError
 
@@ -144,12 +145,13 @@ class Preferences(object):
         tkn_hbox.pack_start(Gtk.Label('Access Token Key : '), False, False, 5)
 
         self._tkn_key = Gtk.Entry()
+        self._tkn_key.set_placeholder_text('Input token key of Pushbullet apis')
         if pb_data.find("token").text is not None:
             self._tkn_key.set_text(pb_data.find("token").text)
         tkn_hbox.pack_start(self._tkn_key, True, True, 1)
 
-        verify_btn = Gtk.Button('Verify')
-        tkn_hbox.pack_start(verify_btn, False, True, 5)
+        self._verify_btn = Gtk.Button('Verify')
+        tkn_hbox.pack_start(self._verify_btn, False, True, 5)
         pb_vbox.pack_start(tkn_hbox, True, True, 5)
 
         channel_hbox = Gtk.HBox()
@@ -164,10 +166,11 @@ class Preferences(object):
         pb_vbox.pack_start(channel_hbox, True, True, 5)
         pb_frame.add(pb_vbox)
 
-        self._pb_check.connect('toggled', self._on_pb_check_toggled, (self._tkn_key, verify_btn))
-        verify_btn.connect('clicked', self._on_verify_clicked)
+        self._pb_check.connect('toggled', self._on_pb_check_toggled)
+        self._tkn_key.connect('changed', self._on_token_key_changed)
+        self._verify_btn.connect('clicked', self._on_verify_clicked)
 
-        self._on_pb_check_toggled(None, (self._tkn_key, verify_btn))
+        self._on_pb_check_toggled(None)
 
         return pb_frame
 
@@ -182,24 +185,30 @@ class Preferences(object):
         em_frame.add(em_vbox)
         return em_frame
 
-    def _on_pb_check_toggled(self, check, enable_widget=None):
+    def _on_token_key_changed(self, entry, data=None):
+        if entry.get_text() == "":
+            self._verify_btn.set_sensitive(False)
+        else:
+            self._verify_btn.set_sensitive(True)
+
+    def _on_pb_check_toggled(self, check, data=None):
         checked = self._pb_check.get_active()
-        for widget in enable_widget:
+        for widget in (self._tkn_key, self._verify_btn):
             widget.set_sensitive(checked)
+        if checked and self._tkn_key.get_text() == "":
+            self._verify_btn.set_sensitive(False)
 
     def _on_verify_clicked(self, btn):
         token = self._tkn_key.get_text()
         try:
             pb = Pushbullet(token)
         except InvalidKeyError as err:
+            self._tkn_key.set_icon_from_stock(Gtk.EntryIconPosition.PRIMARY, Gtk.STOCK_DIALOG_ERROR)
+            self._verified = False
             print(type(err))
-            print(err)
-
-        except PushbulletError as err:
-            print(type(err))
-            print(str(err))
-
+            print(err.args)
         else:
+            self._tkn_key.set_icon_from_stock(Gtk.EntryIconPosition.PRIMARY, Gtk.STOCK_APPLY)
             self._verified = True
             print(pb.devices)
 
@@ -225,7 +234,7 @@ class Preferences(object):
                                    Gtk.DialogFlags.MODAL | Gtk.DialogFlags.DESTROY_WITH_PARENT,
                                    (Gtk.STOCK_OK, Gtk.ResponseType.OK))
         self._prefdlg.set_position(Gtk.WindowPosition.CENTER)
-        self._prefdlg.set_size_request(400, 300)
+        self._prefdlg.set_size_request(500, 300)
         self._prefdlg.set_border_width(5)
         self._prefdlg.set_transient_for(self._parent)
 
