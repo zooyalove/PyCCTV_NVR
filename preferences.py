@@ -11,7 +11,6 @@ gi.require_version('Gtk', '3.0')
 import xml.etree.ElementTree as ET
 
 from gi.repository import Gtk
-from gi.repository import GdkPixbuf
 from pushbullet import Pushbullet
 from pushbullet.errors import InvalidKeyError, PushbulletError
 
@@ -135,6 +134,7 @@ class Preferences(object):
     def _create_pushbullet(self, pb_data):
         pb_frame = Gtk.Frame(label='Pushbullet')
         pb_vbox = Gtk.VBox()
+        pb_vbox.set_border_width(4)
 
         self._pb_check = Gtk.CheckButton(u'사용')
         self._pb_check.set_active(bool(int(pb_data.get('use'))))
@@ -168,8 +168,8 @@ class Preferences(object):
         row_count = -1
         for channel in channels.findall('channel'):
             row_count = row_count + 1
-            self._append_channel_store([int(channel.get('use')), channel.text, channel.get('tag')])
-            if int(channel.get('use')) == 1:
+            self._channel_store([int(channel.get('use', 0)), channel.text, channel.get('tag')])
+            if int(channel.get('use', 0)) == 1:
                 self._pb_channel.set_active(row_count)
         del row_count
 
@@ -187,16 +187,49 @@ class Preferences(object):
 
         return pb_frame
 
-    def _append_channel_store(self, data=[]):
-        self._channel_store.append(data)
-
     def _create_email(self, em_data):
         em_frame = Gtk.Frame(label='E-mail')
         em_vbox = Gtk.VBox()
+        em_vbox.set_border_width(4)
 
         self._em_check = Gtk.CheckButton(u'사용')
         self._em_check.set_active(bool(int(em_data.get('use'))))
         em_vbox.pack_start(self._em_check, False, False, 5)
+
+        hbox1 = Gtk.HBox()
+        hbox1.pack_start(Gtk.Label('SMTP Server Address : '), False, False, 5)
+        srvaddr_entry = Gtk.Entry(text=em_data.find('smtpsrv_addr').text)
+        srvaddr_entry.set_editable(False)
+        srvaddr_entry.set_sensitive(False)
+        hbox1.pack_start(srvaddr_entry, False, True, 1)
+        em_vbox.pack_start(hbox1, True, True, 5)
+
+        hbox2 = Gtk.HBox()
+        hbox2.pack_start(Gtk.Label('SMTP Server Port : '), False, False, 5)
+        srvport_entry = Gtk.Entry(text=em_data.find('smtpsrv_port').text)
+        srvport_entry.set_editable(False)
+        srvport_entry.set_sensitive(False)
+        hbox2.pack_start(srvport_entry, False, True, 1)
+        em_vbox.pack_start(hbox2, True, True, 5)
+
+        em_vbox.pack_start(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL), True, True, 5)
+
+        hbox1 = Gtk.HBox()
+        hbox1.pack_start(Gtk.Label('Username(GMAIL) : '), False, False, 5)
+        self._username_entry = Gtk.Entry(text=(em_data.find('username').text or ""))
+        hbox1.pack_start(self._username_entry, False, True, 1)
+        em_vbox.pack_start(hbox1, True, True, 5)
+
+        hbox2 = Gtk.HBox()
+        hbox2.pack_start(Gtk.Label('User Password : '), False, False, 5)
+        self._userpass_entry = Gtk.Entry(text=(em_data.find('userpass').text or ""))
+        self._userpass_entry.set_visibility(False)
+        hbox2.pack_start(self._userpass_entry, False, True, 1)
+        self._userpass_check = Gtk.CheckButton(label=u'비밀번호 보이기')
+        self._userpass_check.connect('toggled', lambda c: self._userpass_entry.set_visibility(c.get_active()))
+        hbox2.pack_start(self._userpass_check, False, False, 5)
+
+        em_vbox.pack_start(hbox2, True, True, 5)
 
         em_frame.add(em_vbox)
         return em_frame
@@ -231,7 +264,8 @@ class Preferences(object):
             self._channel_store.clear()
             print(pb.channels)
             for channel in pb.channels:
-                self._append_channel_store([0, channel.name, channel.channel_tag])
+                self._channel_store([0, channel.name, channel.channel_tag])
+            self._pb_channel.set_active(0)
 
     def _on_channel_combo_changed(self, combo):
         tree_iter = combo.get_active_iter()
