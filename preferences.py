@@ -11,6 +11,7 @@ gi.require_version('Gtk', '3.0')
 import xml.etree.ElementTree as ET
 
 from gi.repository import Gtk
+from gi.repository import Pango
 from pushbullet import Pushbullet
 from pushbullet.errors import InvalidKeyError, PushbulletError
 
@@ -90,11 +91,11 @@ class Preferences(object):
         general = self._create_general(data.find("general"))
         notebook.append_page(general, Gtk.Label(u'일반'))
 
-        video = self._create_video(data.find("video"))
-        notebook.append_page(video, Gtk.Label(u'영상'))
+        video_and_pic = self._create_video_and_picture([data.find("video"), data.find("snapshot")])
+        notebook.append_page(video_and_pic, Gtk.Label(u'영상 및 사진'))
 
-        snapshot = self._create_snapshot([data.find("snapshot"), data.find("service_provider")])
-        notebook.append_page(snapshot, Gtk.Label(u'사진'))
+        social = self._create_social(data.find("service_provider"))
+        notebook.append_page(social, Gtk.Label(u'소셜 서비스'))
 
         notebook.connect('switch-page', self._on_switch_page)
         notebook.show_all()
@@ -104,6 +105,9 @@ class Preferences(object):
         vbox = Gtk.VBox()
         vbox.set_border_width(10)
         top_label = Gtk.Label(label)
+        fontdesc = Pango.FontDescription()
+        fontdesc.set_weight(Pango.Weight.BOLD)
+        top_label.modify_font(fontdesc)
         top_label.set_halign(Gtk.Align.START)
         vbox.pack_start(top_label, False, False, 0)
 
@@ -112,17 +116,15 @@ class Preferences(object):
         return vbox
 
     def _create_general(self, general_data):
-        vbox = self._create_top_label(u'일반 :')
+        vbox = self._create_top_label(u'일반')
         return vbox
 
-    def _create_video(self, video_data):
-        vbox = self._create_top_label(u'영상 :')
+    def _create_video_and_picture(self, video_and_pic):
+        vbox = self._create_top_label(u'영상 및 사진')
         return vbox
 
-    def _create_snapshot(self, sshot_datalist):
-        sshot_data, svc_data = sshot_datalist[0], sshot_datalist[1]
-
-        vbox = self._create_top_label(u'사진 :')
+    def _create_social(self, svc_data):
+        vbox = self._create_top_label(u'소셜 서비스')
 
         pb_frame = self._create_pushbullet(svc_data.find("pushbullet"))
         vbox.pack_start(pb_frame, True, True, 10)
@@ -146,8 +148,7 @@ class Preferences(object):
 
         self._tkn_key = Gtk.Entry()
         self._tkn_key.set_placeholder_text('Input token key of Pushbullet apis')
-        if pb_data.find("token").text is not None:
-            self._tkn_key.set_text(pb_data.find("token").text)
+        self._tkn_key.set_text(pb_data.find("token").text or "")
         tkn_hbox.pack_start(self._tkn_key, True, True, 1)
 
         self._verify_btn = Gtk.Button('Verify')
@@ -168,7 +169,7 @@ class Preferences(object):
         row_count = -1
         for channel in channels.findall('channel'):
             row_count = row_count + 1
-            self._channel_store([int(channel.get('use', 0)), channel.text, channel.get('tag')])
+            self._channel_store.append([int(channel.get('use', 0)), channel.text, channel.get('tag')])
             if int(channel.get('use', 0)) == 1:
                 self._pb_channel.set_active(row_count)
         del row_count
@@ -196,41 +197,61 @@ class Preferences(object):
         self._em_check.set_active(bool(int(em_data.get('use'))))
         em_vbox.pack_start(self._em_check, False, False, 5)
 
-        hbox1 = Gtk.HBox()
-        hbox1.pack_start(Gtk.Label('SMTP Server Address : '), False, False, 5)
+        grid = Gtk.Grid()
+        grid.set_border_width(4)
+        grid.set_row_spacing(10)
+        grid.set_column_spacing(5)
+
+        lbl = Gtk.Label('SMTP Server Address : ')
+        lbl.set_halign(Gtk.Align.START)
+        grid.attach(lbl, 0, 0, 1, 1)
         srvaddr_entry = Gtk.Entry(text=em_data.find('smtpsrv_addr').text)
         srvaddr_entry.set_editable(False)
         srvaddr_entry.set_sensitive(False)
-        hbox1.pack_start(srvaddr_entry, False, True, 1)
-        em_vbox.pack_start(hbox1, True, True, 5)
+        grid.attach(srvaddr_entry, 1, 0, 2, 1)
 
-        hbox2 = Gtk.HBox()
-        hbox2.pack_start(Gtk.Label('SMTP Server Port : '), False, False, 5)
+        lbl = Gtk.Label('SMTP Server Port : ')
+        lbl.set_halign(Gtk.Align.START)
+        grid.attach(lbl, 0, 1, 1, 1)
         srvport_entry = Gtk.Entry(text=em_data.find('smtpsrv_port').text)
         srvport_entry.set_editable(False)
         srvport_entry.set_sensitive(False)
-        hbox2.pack_start(srvport_entry, False, True, 1)
-        em_vbox.pack_start(hbox2, True, True, 5)
+        grid.attach(srvport_entry, 1, 1, 2, 1)
 
-        em_vbox.pack_start(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL), True, True, 5)
+        grid.attach(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL), 0, 2, 3, 1)
 
-        hbox1 = Gtk.HBox()
-        hbox1.pack_start(Gtk.Label('Username(GMAIL) : '), False, False, 5)
+        lbl = Gtk.Label('Username(GMAIL) : ')
+        lbl.set_halign(Gtk.Align.START)
+        grid.attach(lbl, 0, 3, 1, 1)
         self._username_entry = Gtk.Entry(text=(em_data.find('username').text or ""))
-        hbox1.pack_start(self._username_entry, False, True, 1)
-        em_vbox.pack_start(hbox1, True, True, 5)
+        grid.attach(self._username_entry, 1, 3, 2, 1)
 
-        hbox2 = Gtk.HBox()
-        hbox2.pack_start(Gtk.Label('User Password : '), False, False, 5)
+        lbl = Gtk.Label('User Password : ')
+        lbl.set_halign(Gtk.Align.START)
+        grid.attach(lbl, 0, 4, 1, 1)
         self._userpass_entry = Gtk.Entry(text=(em_data.find('userpass').text or ""))
         self._userpass_entry.set_visibility(False)
-        hbox2.pack_start(self._userpass_entry, False, True, 1)
+        grid.attach(self._userpass_entry, 1, 4, 1, 1)
         self._userpass_check = Gtk.CheckButton(label=u'비밀번호 보이기')
+        self._userpass_check.set_hexpand(True)
         self._userpass_check.connect('toggled', lambda c: self._userpass_entry.set_visibility(c.get_active()))
-        hbox2.pack_start(self._userpass_check, False, False, 5)
+        grid.attach(self._userpass_check, 2, 4, 1, 1)
 
-        em_vbox.pack_start(hbox2, True, True, 5)
+        lbl = Gtk.Label('From(E-mail) : ')
+        lbl.set_halign(Gtk.Align.START)
+        grid.attach(lbl, 0, 5, 1, 1)
+        self._em_from_entry = Gtk.Entry()
+        self._em_from_entry.set_editable(False)
+        grid.attach(self._em_from_entry, 1, 5, 2, 1)
 
+        lbl = Gtk.Label('To(E-mail) : ')
+        lbl.set_halign(Gtk.Align.START)
+        grid.attach(lbl, 0, 6, 1, 1)
+        self._em_to_entry = Gtk.Entry()
+        self._em_to_entry.set_tooltip_text('콤마스페이스(, ) 구분자로 여러명에게 보낼 수 있습니다')
+        grid.attach(self._em_to_entry, 1, 6, 2, 1)
+
+        em_vbox.pack_start(grid, True, True, 5)
         em_frame.add(em_vbox)
         return em_frame
 
@@ -264,7 +285,7 @@ class Preferences(object):
             self._channel_store.clear()
             print(pb.channels)
             for channel in pb.channels:
-                self._channel_store([0, channel.name, channel.channel_tag])
+                self._channel_store.append([0, channel.name, channel.channel_tag])
             self._pb_channel.set_active(0)
 
     def _on_channel_combo_changed(self, combo):
