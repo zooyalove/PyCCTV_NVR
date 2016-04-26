@@ -116,6 +116,33 @@ class Preferences(object):
 
     def _create_general(self, general_data):
         vbox = self._create_top_label(u'일반')
+
+        grid = Gtk.Grid()
+        grid.set_border_width(4)
+        grid.set_row_spacing(10)
+        grid.set_column_spacing(5)
+
+        lbl = Gtk.Label('영상 보유기한 : ')
+        lbl.set_halign(Gtk.Align.START)
+        grid.attach(lbl, 0, 0, 1, 1)
+
+        self._gnl_period = Gtk
+        lbl = Gtk.Label('기본 저장폴더 : ')
+        lbl.set_halign(Gtk.Align.START)
+        grid.attach(lbl, 0, 1, 1, 1)
+
+        self._gnl_folder = Gtk.Entry(text=(general_data.find('save_dir').text or ""))
+        self._gnl_folder.set_hexpand(True)
+        grid.attach(self._gnl_folder, 1, 1, 1, 1)
+
+        folder_img = Gtk.Image()
+        folder_img.set_from_stock(Gtk.STOCK_DIRECTORY, Gtk.IconSize.BUTTON)
+        folder_btn = Gtk.Button()
+        folder_btn.set_image(folder_img)
+        folder_btn.set_tooltip_text()
+        grid.attach(folder_btn, 2, 1, 1, 1)
+
+        vbox.pack_start(grid, True, True, 5)
         return vbox
 
     def _create_video_and_picture(self, video_and_pic):
