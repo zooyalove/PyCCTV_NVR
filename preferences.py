@@ -97,7 +97,6 @@ class Preferences(object):
         social = self._create_social(data.find("service_provider"))
         notebook.append_page(social, Gtk.Label(u'소셜 서비스'))
 
-        notebook.connect('switch-page', self._on_switch_page)
         notebook.show_all()
         return notebook
 
@@ -240,34 +239,49 @@ class Preferences(object):
         lbl = Gtk.Label('From(E-mail) : ')
         lbl.set_halign(Gtk.Align.START)
         grid.attach(lbl, 0, 5, 1, 1)
-        self._em_from_entry = Gtk.Entry()
+        self._em_from_entry = Gtk.Entry(text=(em_data.find('from').text or ""))
         self._em_from_entry.set_editable(False)
         grid.attach(self._em_from_entry, 1, 5, 2, 1)
 
         lbl = Gtk.Label('To(E-mail) : ')
         lbl.set_halign(Gtk.Align.START)
         grid.attach(lbl, 0, 6, 1, 1)
-        self._em_to_entry = Gtk.Entry()
+        self._em_to_entry = Gtk.Entry(text=(em_data.find('to').text or ""))
         self._em_to_entry.set_tooltip_text('콤마스페이스(, ) 구분자로 여러명에게 보낼 수 있습니다')
         grid.attach(self._em_to_entry, 1, 6, 2, 1)
 
+        lbl = Gtk.Label('Subject : ')
+        lbl.set_halign(Gtk.Align.START)
+        grid.attach(lbl, 0, 7, 1, 1)
+        self._em_subject_entry = Gtk.Entry(text=(em_data.find('subject').text or ""))
+        grid.attach(self._em_subject_entry, 1, 7, 2, 1)
+
+        lbl = Gtk.Label('Msg Body : ')
+        lbl.set_halign(Gtk.Align.START)
+        grid.attach(lbl, 0, 8, 1, 1)
+        self._em_body_entry = Gtk.Entry(text=(em_data.find('msg_body').text or ""))
+        grid.attach(self._em_body_entry, 1, 8, 2, 1)
+
         em_vbox.pack_start(grid, True, True, 5)
         em_frame.add(em_vbox)
+
+        self._em_check.connect('toggled', self._on_em_check_toggled)
+
         return em_frame
 
-    def _on_token_key_changed(self, entry, data=None):
+    def _on_pb_check_toggled(self, check):
+        checked = self._pb_check.get_active()
+        for widget in (self._tkn_key, self._verify_btn, self._pb_channel):
+            widget.set_sensitive(checked)
+        if checked and self._tkn_key.get_text() == "":
+            self._verify_btn.set_sensitive(False)
+
+    def _on_token_key_changed(self, entry):
         if entry.get_text() == "":
             self._verify_btn.set_sensitive(False)
         else:
             self._verify_btn.set_sensitive(True)
         self._verified = False
-
-    def _on_pb_check_toggled(self, check, data=None):
-        checked = self._pb_check.get_active()
-        for widget in (self._tkn_key, self._verify_btn):
-            widget.set_sensitive(checked)
-        if checked and self._tkn_key.get_text() == "":
-            self._verify_btn.set_sensitive(False)
 
     def _on_verify_clicked(self, btn):
         token = self._tkn_key.get_text()
@@ -295,11 +309,11 @@ class Preferences(object):
             use, name, tag = model[tree_iter][:3]
             print(use, name, tag)
 
-    def _on_switch_page(self, notebook, page, page_num):
-        if page_num == 2:
-            self._prefdlg.resize(500, 500)
-        else:
-            self._prefdlg.resize(500, 300)
+    def _on_em_check_toggled(self, check):
+        checked = check.get_active()
+        for widget in (self._username_entry, self._userpass_entry, self._em_from_entry,
+                       self._em_to_entry, self._em_subject_entry, self._em_body_entry):
+            widget.set_sensitive(checked)
 
     def is_exists(self):
         return self._exists
@@ -314,10 +328,10 @@ class Preferences(object):
     '''
     def run(self):
         self._prefdlg = Gtk.Dialog(u'Preference', self._parent,
-                                   Gtk.DialogFlags.MODAL | Gtk.DialogFlags.DESTROY_WITH_PARENT,
+                                   Gtk.DialogFlags.MODAL,
                                    (Gtk.STOCK_OK, Gtk.ResponseType.OK))
         self._prefdlg.set_position(Gtk.WindowPosition.CENTER)
-        self._prefdlg.set_size_request(500, 300)
+        self._prefdlg.set_size_request(500, -1)
         self._prefdlg.set_border_width(5)
         self._prefdlg.set_transient_for(self._parent)
 
