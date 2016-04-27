@@ -82,9 +82,6 @@ class Preferences(object):
         # self._exists, self._data = xml_parse(self._file)
         self._exists, self._data = xml_parse(DEFAULT_PREF)
 
-    def _get_preferences(self):
-        pass
-
     def _create_ui(self, data):
         notebook = Gtk.Notebook()
 
@@ -125,28 +122,85 @@ class Preferences(object):
         lbl = Gtk.Label('영상 보유기한 : ')
         lbl.set_halign(Gtk.Align.START)
         grid.attach(lbl, 0, 0, 1, 1)
+        hbox = Gtk.HBox()
+        self._gnl_period = Gtk.SpinButton.new_with_range(30, 60, 5)
+        self._gnl_period.set_value(int(general_data.find('period').text or 30))
+        hbox.pack_start(self._gnl_period, False, False, 0)
+        hbox.pack_start(Gtk.Label('일'), False, False, 5)
+        hbox.set_halign(Gtk.Align.START)
+        grid.attach(hbox, 1, 0, 1, 1)
 
-        self._gnl_period = Gtk
         lbl = Gtk.Label('기본 저장폴더 : ')
         lbl.set_halign(Gtk.Align.START)
         grid.attach(lbl, 0, 1, 1, 1)
-
         self._gnl_folder = Gtk.Entry(text=(general_data.find('save_dir').text or ""))
         self._gnl_folder.set_hexpand(True)
         grid.attach(self._gnl_folder, 1, 1, 1, 1)
+
+        def on_folder_btn_clicked(btn):
+            folder_dlg = Gtk.FileChooserDialog('CCTV 영상과 사진 저장할 폴더 선택해주세요 :', self._prefdlg,
+                                               Gtk.FileChooserAction.SELECT_FOLDER,
+                                               (Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL, '선택', Gtk.ResponseType.OK))
+            if Gtk.ResponseType.OK == folder_dlg.run():
+                self._gnl_folder.set_text(folder_dlg.get_filename())
+            folder_dlg.destroy()
 
         folder_img = Gtk.Image()
         folder_img.set_from_stock(Gtk.STOCK_DIRECTORY, Gtk.IconSize.BUTTON)
         folder_btn = Gtk.Button()
         folder_btn.set_image(folder_img)
-        folder_btn.set_tooltip_text()
-        grid.attach(folder_btn, 2, 1, 1, 1)
+        folder_btn.connect('clicked', on_folder_btn_clicked)
+        grid.attach(folder_btn, 3, 1, 1, 1)
 
         vbox.pack_start(grid, True, True, 5)
         return vbox
 
     def _create_video_and_picture(self, video_and_pic):
+        video, snapshot = video_and_pic[0], video_and_pic[1]
+
         vbox = self._create_top_label(u'영상 및 사진')
+
+        vid_frame = Gtk.Frame(label='Video')
+        vid_box = Gtk.VBox()
+        vid_box.set_border_width(4)
+
+        hbox = Gtk.HBox()
+        hbox.pack_start(Gtk.Label('화면내 움직임 감지시 저장 : '), False, False, 5)
+        self._motion_check = Gtk.CheckButton(u'사용')
+        self._motion_check.set_tooltip_text('미사용시 24시간동안 저장함.')
+        self._motion_check.set_active(bool(int(video.find('motion').text)))
+        hbox.pack_start(self._motion_check, False, False, 5)
+        vid_box.pack_start(hbox, True, True, 5)
+
+        hbox = Gtk.HBox()
+        hbox.pack_start(Gtk.Label('영상별 기본 저장시간 : '), False, False, 5)
+        self._video_timeout = Gtk.SpinButton.new_with_range(10, 60, 10)
+        self._video_timeout.set_value(int(video.find('timeout').text))
+        hbox.pack_start(self._video_timeout, False, True, 5)
+        hbox.pack_start(Gtk.Label('분'), False, False, 0)
+        vid_box.pack_start(hbox, True, True, 5)
+        vid_frame.add(vid_box)
+        vbox.pack_start(vid_frame, False, True, 10)
+
+        sshot_frame = Gtk.Frame(label='Snapshot')
+        sshot_box = Gtk.VBox()
+        sshot_box.set_border_width(4)
+
+        hbox = Gtk.HBox()
+        hbox.pack_start(Gtk.Label('스냅샷 파일명 접두사 : '), False, False, 5)
+        self._sshot_prefix = Gtk.Entry(text=(snapshot.find('prefix').text or ""))
+        hbox.pack_start(self._sshot_prefix, False, False, 5)
+        sshot_box.pack_start(hbox, True, True, 5)
+
+        hbox = Gtk.HBox()
+        hbox.pack_start(Gtk.Label('스냅샷 저장시 해상도 : '), False, False, 5)
+        self._sshot_quality = Gtk.SpinButton.new_with_range(10, 100, 5)
+        self._sshot_quality.set_value(int(snapshot.find('quality').text or 85))
+        hbox.pack_start(self._sshot_quality, False, False, 5)
+        hbox.pack_start(Gtk.Label('%'), False, False, 0)
+        sshot_box.pack_start(hbox, True, True, 5)
+        sshot_frame.add(sshot_box)
+        vbox.pack_start(sshot_frame, False, True, 10)
         return vbox
 
     def _create_social(self, svc_data):
@@ -172,9 +226,12 @@ class Preferences(object):
 
         tkn_hbox.pack_start(Gtk.Label('Access Token Key : '), False, False, 5)
 
+        token = pb_data.find("token")
+        self._verified = bool(int(token.get('verified')))
+
         self._tkn_key = Gtk.Entry()
         self._tkn_key.set_placeholder_text('Input token key of Pushbullet apis')
-        self._tkn_key.set_text(pb_data.find("token").text or "")
+        self._tkn_key.set_text(token.text or "")
         tkn_hbox.pack_start(self._tkn_key, True, True, 1)
 
         self._verify_btn = Gtk.Button('Verify')
@@ -211,7 +268,6 @@ class Preferences(object):
         self._pb_channel.connect('changed', self._on_channel_combo_changed)
 
         self._on_pb_check_toggled(None)
-
         return pb_frame
 
     def _create_email(self, em_data):
@@ -294,6 +350,8 @@ class Preferences(object):
 
         self._em_check.connect('toggled', self._on_em_check_toggled)
 
+        self._on_em_check_toggled(None)
+
         return em_frame
 
     def _on_pb_check_toggled(self, check):
@@ -337,10 +395,58 @@ class Preferences(object):
             print(use, name, tag)
 
     def _on_em_check_toggled(self, check):
-        checked = check.get_active()
+        checked = self._em_check.get_active()
         for widget in (self._username_entry, self._userpass_entry, self._em_from_entry,
                        self._em_to_entry, self._em_subject_entry, self._em_body_entry):
             widget.set_sensitive(checked)
+
+    def _pref_save(self):
+        general = self._data.find('general')
+        general.find('period').text = str(int(self._gnl_period.get_value()))
+        general.find('save_dir').text = self._gnl_folder.get_text()
+
+        video = self._data.find('video')
+        video.find('motion').text = str(int(self._motion_check.get_active()))
+        video.find('timeout').text = str(int(self._video_timeout.get_value()))
+
+        snapshot = self._data.find('snapshot')
+        snapshot.find('prefix').text = self._sshot_prefix.get_text()
+        snapshot.find('quality').text = str(int(self._sshot_quality.get_value()))
+
+        svc_provider = self._data.find('service_provider')
+        pushbullet = svc_provider.find('pushbullet')
+        pushbullet.set('use', str(int(self._pb_check.get_active())))
+
+        token = pushbullet.find('token')
+        token.text = self._tkn_key.get_text()
+        token.set('verified', str(int(self._verified)))
+
+        channels = pushbullet.find('channels')
+        channels.clear()
+        treeiter = self._pb_channel.get_active_iter()
+        model = self._pb_channel.get_model()
+        name, tag = model[treeiter][1:3]
+        for row in self._channel_store:
+            channel = ET.SubElement(channels, 'channel', {'tag': row[2]})
+            channel.text = row[1]
+            if name == row[1]:
+                channel.set('use', "1")
+
+        email = svc_provider.find('email')
+        email.set('use', str(int(self._em_check.get_active())))
+        email.find('username').text = self._username_entry.get_text()
+        email.find('userpass').text = self._userpass_entry.get_text()
+        email.find('from').text = self._em_from_entry.get_text()
+        email.find('to').text = self._em_to_entry.get_text()
+        email.find('subject').text = self._em_subject_entry.get_text()
+        email.find('msg_body').text = self._em_body_entry.get_text()
+
+        ET.dump(self._data)
+    '''
+    @rtype: dict
+    '''
+    def _get_preferences(self):
+        pass
 
     def is_exists(self):
         return self._exists
@@ -354,7 +460,7 @@ class Preferences(object):
     @rtype: Gtk.ResponseType
     '''
     def run(self):
-        self._prefdlg = Gtk.Dialog(u'Preference', self._parent,
+        self._prefdlg = Gtk.Dialog(u'환경설정', self._parent,
                                    Gtk.DialogFlags.MODAL,
                                    (Gtk.STOCK_OK, Gtk.ResponseType.OK))
         self._prefdlg.set_position(Gtk.WindowPosition.CENTER)
@@ -372,7 +478,8 @@ class Preferences(object):
 
         response = self._prefdlg.run()
         if response == Gtk.ResponseType.OK:
-            pass
+            self._pref_save()
+
         self._prefdlg.destroy()
 
         return self._get_preferences()
