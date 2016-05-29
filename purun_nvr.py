@@ -45,7 +45,7 @@ class PurunNVR(object):
         self.config['Timeout'] = 30 * 60'''
 
         # self.pb = Pushbullet(PB_API_KEY)
-        self.pref = Preferences()
+        self.pref = Preferences(self)
         self._setupUI()
 
     def _setupUI(self):
